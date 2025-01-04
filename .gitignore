@@ -10,3 +10,16 @@ __pycache__/
 /.venv
 /venv
 /.idea
+
+# Logs
+*.log
+/logs/
+**/logs/
+
+# Generated content
+RA.Aid_contents.txt
+
+# Test outputs
+.pytest_cache/
+.coverage
+htmlcov/
