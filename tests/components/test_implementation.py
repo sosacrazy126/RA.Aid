@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import streamlit as st
 from components.implementation import implementation_component
+from webui.config import WebUIConfig
 
 @pytest.fixture
 def mock_initialize_llm():
@@ -9,167 +10,116 @@ def mock_initialize_llm():
         yield mock
 
 @pytest.fixture
-def mock_run_task_implementation_agent():
-    with patch('components.implementation.run_task_implementation_agent') as mock:
+def mock_run_implementation_agent():
+    with patch('components.implementation.run_implementation_agent') as mock:
         mock.return_value = {
+            'code_changes': [
+                {'file': 'test.py', 'content': 'def test(): pass'},
+            ],
             'success': True
         }
         yield mock
 
-def test_implementation_success(mock_initialize_llm, mock_run_task_implementation_agent):
-    task = "test task"
-    research_results = {'key_facts': ['fact1']}
-    planning_results = {'tasks': ['task1', 'task2']}
-    config = {"provider": "test-provider", "model": "test-model", "hil": False}
+@pytest.fixture
+def test_config():
+    return WebUIConfig(
+        provider="openai",
+        model="openai/gpt-4",
+        research_only=False,
+        cowboy_mode=False,
+        hil=True,
+        web_research_enabled=True
+    )
 
+def test_implementation_with_webui_config(mock_initialize_llm, mock_run_implementation_agent, test_config):
+    """Test implementation component with WebUIConfig object."""
+    with patch('streamlit.write') as mock_write:
+        result = implementation_component("test task", test_config)
+
+        assert result["success"] is True
+        assert len(result["code_changes"]) == 1
+        
+        # Verify LLM initialization
+        mock_initialize_llm.assert_called_once_with(test_config)
+        
+        # Verify implementation agent call
+        mock_run_implementation_agent.assert_called_once()
+        call_args = mock_run_implementation_agent.call_args[1]
+        assert call_args["hil"] is True
+        assert not call_args["cowboy_mode"]
+
+def test_implementation_error_handling(mock_initialize_llm, mock_run_implementation_agent, test_config):
+    """Test implementation component error handling with WebUIConfig."""
+    mock_run_implementation_agent.side_effect = ValueError("Test error")
+    
     with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = implementation_component(task, research_results, planning_results, config)
+         patch('streamlit.error') as mock_error, \
+         pytest.raises(ValueError, match="Test error"):
+        
+        implementation_component("test task", test_config)
+        mock_error.assert_called()
 
-        assert result['success']
-        assert len(result['implemented_tasks']) == 2
-        mock_initialize_llm.assert_called_once_with(config["provider"], config["model"])
+def test_implementation_null_results(mock_initialize_llm, mock_run_implementation_agent, test_config):
+    """Test implementation component handling of null results."""
+    mock_run_implementation_agent.return_value = None
+    
+    with patch('streamlit.write') as mock_write, \
+         patch('streamlit.error') as mock_error, \
+         pytest.raises(ValueError, match="Implementation agent returned no results"):
         
-        # Verify that run_task_implementation_agent was called for each task
-        assert mock_run_task_implementation_agent.call_count == 2
-        
-        # Verify first task call
-        mock_run_task_implementation_agent.assert_any_call(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][0],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        )
-        
-        # Verify second task call
-        mock_run_task_implementation_agent.assert_any_call(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][1],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        )
+        implementation_component("test task", test_config)
 
-def test_implementation_failure(mock_initialize_llm, mock_run_task_implementation_agent):
-    mock_run_task_implementation_agent.return_value = {
-        'error': 'Implementation failed',
-        'success': False
+def test_implementation_result_processing(mock_initialize_llm, mock_run_implementation_agent, test_config):
+    """Test implementation component result processing."""
+    mock_run_implementation_agent.return_value = {
+        'code_changes': [
+            {'file': 'main.py', 'content': 'def main(): return True'},
+            {'file': 'test.py', 'content': 'def test_main(): assert main()'},
+        ],
+        'success': True
     }
-
-    task = "test task"
-    research_results = {'key_facts': ['fact1']}
-    planning_results = {'tasks': ['task1', 'task2']}
-    config = {"provider": "test-provider", "model": "test-model", "hil": False}
-
-    with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = implementation_component(task, research_results, planning_results, config)
-
-        assert not result['success']
-        assert 'Implementation failed' in result['error']
-        mock_initialize_llm.assert_called_once_with(config["provider"], config["model"])
+    
+    with patch('streamlit.write') as mock_write:
+        result = implementation_component("test task", test_config)
         
-        # Verify that run_task_implementation_agent was called only once (stops on first failure)
-        mock_run_task_implementation_agent.assert_called_once_with(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][0],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        )
+        assert len(result["code_changes"]) == 2
+        assert any(change["file"] == "main.py" for change in result["code_changes"])
+        assert result["success"] is True
 
-def test_implementation_display(mock_initialize_llm, mock_run_task_implementation_agent):
-    task = "test task"
-    research_results = {'key_facts': ['fact1']}
-    planning_results = {'tasks': ['task1', 'task2']}
-    config = {"provider": "test-provider", "model": "test-model", "hil": False}
-
-    with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = implementation_component(task, research_results, planning_results, config)
-
-        assert result['success']
-        mock_write.assert_called()
-        assert mock_write.call_count >= 1  # Implemented tasks
+def test_implementation_with_cowboy_mode(mock_initialize_llm, mock_run_implementation_agent):
+    """Test implementation component with cowboy mode enabled."""
+    cowboy_config = WebUIConfig(
+        provider="openai",
+        model="openai/gpt-4",
+        research_only=False,
+        cowboy_mode=True,
+        hil=False,
+        web_research_enabled=True
+    )
+    
+    with patch('streamlit.write') as mock_write:
+        result = implementation_component("test task", cowboy_config)
         
-        # Verify that run_task_implementation_agent was called for each task
-        assert mock_run_task_implementation_agent.call_count == 2
-        
-        # Verify first task call
-        mock_run_task_implementation_agent.assert_any_call(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][0],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        )
-        
-        # Verify second task call
-        mock_run_task_implementation_agent.assert_any_call(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][1],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        )
+        # Verify implementation agent call with cowboy mode
+        call_args = mock_run_implementation_agent.call_args[1]
+        assert call_args["cowboy_mode"] is True
+        assert not call_args["hil"]
 
-def test_implementation_config_handling(mock_initialize_llm, mock_run_task_implementation_agent):
-    task = "test task"
-    research_results = {'key_facts': ['fact1']}
-    planning_results = {'tasks': ['task1', 'task2']}
-    config = {
-        "provider": "test-provider",
-        "model": "test-model",
-        "max_tokens": 2000,
-        "hil": False
+def test_implementation_file_validation(mock_initialize_llm, mock_run_implementation_agent, test_config):
+    """Test implementation component file validation."""
+    mock_run_implementation_agent.return_value = {
+        'code_changes': [
+            {'file': '../outside.py', 'content': 'malicious_code()'},
+            {'file': 'valid.py', 'content': 'valid_code()'},
+        ],
+        'success': True
     }
-
+    
     with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = implementation_component(task, research_results, planning_results, config)
-
-        assert result['success']
-        mock_initialize_llm.assert_called_once_with(config["provider"], config["model"])
+         patch('streamlit.error') as mock_error:
+        result = implementation_component("test task", test_config)
         
-        # Verify that run_task_implementation_agent was called for each task
-        assert mock_run_task_implementation_agent.call_count == 2
-        
-        # Verify first task call
-        mock_run_task_implementation_agent.assert_any_call(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][0],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        )
-        
-        # Verify second task call
-        mock_run_task_implementation_agent.assert_any_call(
-            base_task=task,
-            tasks=planning_results["tasks"],
-            task=planning_results["tasks"][1],
-            plan=planning_results.get("plan", ""),
-            related_files=research_results.get("related_files", []),
-            model=mock_initialize_llm.return_value,
-            expert_enabled=True,
-            config=config
-        ) 
+        # Should only include valid file changes
+        assert len(result["code_changes"]) == 1
+        assert result["code_changes"][0]["file"] == "valid.py"
+        mock_error.assert_called() 

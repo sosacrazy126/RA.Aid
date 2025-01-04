@@ -24,11 +24,12 @@ from components.planning import planning_component
 from components.implementation import implementation_component
 from webui.config import WebUIConfig, load_environment_status
 from ra_aid.logger import logger
-from ra_aid.llm import initialize_llm
+from ra_aid.llm import initialize_llm, create_model
 from ra_aid.agent_utils import (
     run_research_agent,
     run_planning_agent, 
-    run_task_implementation_agent
+    run_task_implementation_agent,
+    run_conversation_agent
 )
 import asyncio
 import os
@@ -36,7 +37,7 @@ import anthropic
 from openai import OpenAI
 from dotenv import load_dotenv
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from litellm import completion
 
 # Load environment variables
@@ -405,21 +406,16 @@ def send_task(task: str, config: dict):
     else:
         st.error("Not connected to server")
 
-async def research_component(task: str, config: Dict[str, Any]) -> Dict[str, Any]:
+async def research_component(task: str, config: WebUIConfig) -> Dict[str, Any]:
     """Handle the research stage of RA.Aid."""
     try:
         ui_logger.info("Starting research phase")
         
-        # Validate required config fields
-        required_fields = ["provider", "model"]
-        for field in required_fields:
-            if field not in config:
-                raise ValueError(f"Missing required configuration field: {field}")
-
-        ui_logger.info(f"Initializing LLM: {config['provider']}/{config['model']}")
-        model = initialize_llm(config["provider"], config["model"])
+        # Initialize LLM with config
+        ui_logger.info(f"Initializing LLM with config: {config}")
+        model = initialize_llm(config)
         
-        _global_memory['config'] = config.copy()
+        _global_memory['config'] = config
         
         st.session_state.messages.append({
             "role": "assistant",
@@ -432,9 +428,9 @@ async def research_component(task: str, config: Dict[str, Any]) -> Dict[str, Any
             task,
             model,
             expert_enabled=True,
-            research_only=getattr(config, "research_only", True),
-            hil=getattr(config, "hil", False),
-            web_research_enabled=getattr(config, "web_research_enabled", False),
+            research_only=config.research_only,
+            hil=config.hil,
+            web_research_enabled=config.web_research_enabled,
             config=config
         )
         
@@ -548,22 +544,19 @@ def determine_interaction_type(task: str) -> str:
     # Default to conversation
     return 'conversation'
 
-async def handle_conversation(task: str, config: Dict[str, Any]) -> str:
-    """Handle a conversation task by calling the LLM."""
+async def handle_conversation(task: str, config: WebUIConfig) -> str:
+    """Handle a conversation task."""
     try:
-        # Extract provider and model name from config
-        provider, model_name = config.model.split('/')
-            
-        response = completion(
-            model=f"{provider}/{model_name}",  # Format as provider/model
-            messages=[{"role": "user", "content": task}],
-            temperature=0.7,
-            max_tokens=2000
-        )
-        return response.choices[0].message.content
+        # Initialize LLM with config
+        model = initialize_llm(config)
+        
+        # Run conversation agent
+        response = await run_conversation_agent(task, model, config)
+        return response
+        
     except Exception as e:
         error_message = f"LLM Error: {str(e)}"
-        ui_logger.error(error_message)
+        logger.error(error_message)
         raise Exception(error_message)
 
 async def handle_research_results(results: Dict[str, Any]) -> None:

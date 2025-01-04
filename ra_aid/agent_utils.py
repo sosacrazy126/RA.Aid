@@ -3,7 +3,7 @@
 import sys
 import time
 import uuid
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 import signal
 import threading
@@ -45,7 +45,7 @@ from ra_aid.prompts import (
 )
 from langgraph.checkpoint.memory import MemorySaver
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from anthropic import APIError, APITimeoutError, RateLimitError, InternalServerError
 from rich.console import Console
 from rich.markdown import Markdown
@@ -63,6 +63,7 @@ from ra_aid.prompts import (
     EXPERT_PROMPT_SECTION_RESEARCH,
     HUMAN_PROMPT_SECTION_RESEARCH
 )
+from webui.config import WebUIConfig
 
 
 console = Console()
@@ -118,7 +119,7 @@ def run_research_agent(
     hil: bool = False,
     web_research_enabled: bool = False,
     memory: Optional[Any] = None,
-    config: Optional[dict] = None,
+    config: Optional[Union[dict, WebUIConfig]] = None,
     thread_id: Optional[str] = None,
     console_message: Optional[str] = None
 ) -> Optional[str]:
@@ -132,20 +133,12 @@ def run_research_agent(
         hil: Whether human-in-the-loop mode is enabled
         web_research_enabled: Whether web research is enabled
         memory: Optional memory instance to use
-        config: Optional configuration dictionary
+        config: Optional configuration dictionary or WebUIConfig object
         thread_id: Optional thread ID (defaults to new UUID)
         console_message: Optional message to display before running
 
     Returns:
         Optional[str]: The completion message if task completed successfully
-
-    Example:
-        result = run_research_agent(
-            "Research Python async patterns",
-            model,
-            expert_enabled=True,
-            research_only=True
-        )
     """
     thread_id = thread_id or str(uuid.uuid4())
     logger.debug("Starting research agent with thread_id=%s", thread_id)
@@ -156,16 +149,14 @@ def run_research_agent(
     if memory is None:
         memory = MemorySaver()
 
-    # Set up thread ID
-    if thread_id is None:
-        thread_id = str(uuid.uuid4())
-
     # Configure tools
     tools = get_research_tools(
         research_only=research_only,
         expert_enabled=expert_enabled,
         human_interaction=hil,
-        web_research_enabled=config.get('web_research_enabled', False)
+        web_research_enabled=web_research_enabled if config is None else (
+            config.web_research_enabled if isinstance(config, WebUIConfig) else config.get('web_research_enabled', False)
+        )
     )
 
     # Create agent
@@ -174,7 +165,11 @@ def run_research_agent(
     # Format prompt sections
     expert_section = EXPERT_PROMPT_SECTION_RESEARCH if expert_enabled else ""
     human_section = HUMAN_PROMPT_SECTION_RESEARCH if hil else ""
-    web_research_section = WEB_RESEARCH_PROMPT_SECTION_RESEARCH if config.get('web_research_enabled') else ""
+    web_research_section = WEB_RESEARCH_PROMPT_SECTION_RESEARCH if (
+        web_research_enabled if config is None else (
+            config.web_research_enabled if isinstance(config, WebUIConfig) else config.get('web_research_enabled', False)
+        )
+    ) else ""
 
     # Get research context from memory
     key_facts = _global_memory.get("key_facts", "")
@@ -195,11 +190,21 @@ def run_research_agent(
 
     # Set up configuration
     run_config = {
-         "configurable": {"thread_id": thread_id},
+        "configurable": {"thread_id": thread_id},
         "recursion_limit": 100
     }
     if config:
-        run_config.update(config)
+        if isinstance(config, WebUIConfig):
+            run_config.update({
+                "provider": config.provider,
+                "model": config.model,
+                "research_only": config.research_only,
+                "cowboy_mode": config.cowboy_mode,
+                "hil": config.hil,
+                "web_research_enabled": config.web_research_enabled
+            })
+        else:
+            run_config.update(config)
 
     try:
         # Display console message if provided
@@ -569,3 +574,44 @@ def run_agent_with_retry(agent, prompt: str, config: dict) -> Optional[str]:
 
             if original_handler and threading.current_thread() is threading.main_thread():
                 signal.signal(signal.SIGINT, original_handler)
+
+async def run_conversation_agent(task: str, model: BaseChatModel, config: WebUIConfig) -> str:
+    """Run the conversation agent to handle general chat interactions.
+    
+    Args:
+        task (str): The user's message or query
+        model (BaseChatModel): The language model to use
+        config (WebUIConfig): Configuration for the conversation
+        
+    Returns:
+        str: The model's response
+        
+    Raises:
+        ValueError: If the model fails to generate a response
+    """
+    try:
+        # Create agent with conversation tools
+        agent = CiaynAgent(model, [output_markdown_message])
+        
+        # Create system prompt
+        system_prompt = "You are a helpful AI assistant. Provide clear, concise, and accurate responses."
+        
+        # Build prompt with web research if enabled
+        web_research_section = WEB_RESEARCH_PROMPT_SECTION_CHAT if config.web_research_enabled else ""
+        prompt = f"{system_prompt}\n\n{web_research_section}\n\nUser query: {task}"
+        
+        # Run agent with retry logic
+        run_config = {
+            "configurable": {"thread_id": str(uuid.uuid4())},
+            "recursion_limit": 100
+        }
+        
+        response = run_agent_with_retry(agent, prompt, run_config)
+        if not response:
+            raise ValueError("Agent returned no response")
+            
+        return response
+        
+    except Exception as e:
+        logger.error(f"Conversation agent error: {str(e)}")
+        raise ValueError(f"Failed to process conversation: {str(e)}")

@@ -28,18 +28,18 @@ def load_environment_status() -> Dict[str, bool]:
 class WebUIConfig:
     """Configuration for the WebUI."""
     
-    def __init__(self, provider: str = "openai", model: str = "gpt-4", 
+    def __init__(self, provider: str = "openai", model: str = "openai/gpt-4", 
                  research_only: bool = False, cowboy_mode: bool = False,
                  hil: bool = True, web_research_enabled: bool = True):
         """Initialize WebUI configuration."""
         self.provider = provider
-        self.model = model
+        self.model = model if '/' in model else f"{provider}/{model}"  # Ensure provider/model format
         self.research_only = research_only
         self.cowboy_mode = cowboy_mode
         self.hil = hil
         self.web_research_enabled = web_research_enabled
         
-        config_logger.info(f"Initializing WebUIConfig: provider={provider}, model={model}")
+        config_logger.info(f"Initializing WebUIConfig: provider={provider}, model={self.model}")
         config_logger.debug(f"Additional settings: research_only={research_only}, "
                           f"cowboy_mode={cowboy_mode}, hil={hil}, "
                           f"web_research_enabled={web_research_enabled}")
@@ -61,6 +61,16 @@ class WebUIConfig:
         if self.provider not in ["openai", "anthropic", "openrouter"]:
             config_logger.error(f"Invalid provider: {self.provider}")
             raise ValueError(f"Invalid provider: {self.provider}")
+            
+        # Validate model format
+        if '/' not in self.model:
+            config_logger.error(f"Invalid model format: {self.model}. Expected format: provider/model_name")
+            raise ValueError(f"Invalid model format: {self.model}. Expected format: provider/model_name")
+            
+        model_provider = self.model.split('/')[0]
+        if model_provider != self.provider:
+            config_logger.error(f"Model provider ({model_provider}) does not match configured provider ({self.provider})")
+            raise ValueError(f"Model provider ({model_provider}) does not match configured provider ({self.provider})")
             
         # Validate API keys are set
         api_keys = {

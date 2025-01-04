@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import streamlit as st
 from components.planning import planning_component
+from webui.config import WebUIConfig
 
 @pytest.fixture
 def mock_initialize_llm():
@@ -12,94 +13,93 @@ def mock_initialize_llm():
 def mock_run_planning_agent():
     with patch('components.planning.run_planning_agent') as mock:
         mock.return_value = {
-            'plans': ['plan1', 'plan2'],
-            'tasks': ['task1', 'task2'],
+            'plan': ['step1', 'step2'],
             'success': True
         }
         yield mock
 
-def test_planning_success(mock_initialize_llm, mock_run_planning_agent):
-    task = "test task"
-    config = {"provider": "test-provider", "model": "test-model", "hil": False}
+@pytest.fixture
+def test_config():
+    return WebUIConfig(
+        provider="openai",
+        model="openai/gpt-4",
+        research_only=False,
+        cowboy_mode=False,
+        hil=True,
+        web_research_enabled=True
+    )
 
+def test_planning_with_webui_config(mock_initialize_llm, mock_run_planning_agent, test_config):
+    """Test planning component with WebUIConfig object."""
+    with patch('streamlit.write') as mock_write:
+        result = planning_component("test task", test_config)
+
+        assert result["success"] is True
+        assert len(result["plan"]) == 2
+        
+        # Verify LLM initialization
+        mock_initialize_llm.assert_called_once_with(test_config)
+        
+        # Verify planning agent call
+        mock_run_planning_agent.assert_called_once()
+        call_args = mock_run_planning_agent.call_args[1]
+        assert call_args["hil"] is True
+        assert not call_args["cowboy_mode"]
+
+def test_planning_error_handling(mock_initialize_llm, mock_run_planning_agent, test_config):
+    """Test planning component error handling with WebUIConfig."""
+    mock_run_planning_agent.side_effect = ValueError("Test error")
+    
     with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = planning_component(task, config)
+         patch('streamlit.error') as mock_error, \
+         pytest.raises(ValueError, match="Test error"):
+        
+        planning_component("test task", test_config)
+        mock_error.assert_called()
 
-        assert result['success']
-        assert len(result['plans']) == 2
-        assert len(result['tasks']) == 2
-        mock_initialize_llm.assert_called_once_with(config["provider"], config["model"])
-        mock_run_planning_agent.assert_called_once_with(
-            task,
-            mock_initialize_llm.return_value,
-            expert_enabled=True,
-            hil=config["hil"],
-            config=config
-        )
-
-def test_planning_failure(mock_initialize_llm, mock_run_planning_agent):
-    mock_run_planning_agent.return_value = {
-        'error': 'Planning failed',
-        'success': False
-    }
-
-    task = "test task"
-    config = {"provider": "test-provider", "model": "test-model", "hil": False}
-
+def test_planning_null_results(mock_initialize_llm, mock_run_planning_agent, test_config):
+    """Test planning component handling of null results."""
+    mock_run_planning_agent.return_value = None
+    
     with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = planning_component(task, config)
+         patch('streamlit.error') as mock_error, \
+         pytest.raises(ValueError, match="Planning agent returned no results"):
+        
+        planning_component("test task", test_config)
 
-        assert not result['success']
-        assert 'Planning failed' in result['error']
-        mock_initialize_llm.assert_called_once_with(config["provider"], config["model"])
-        mock_run_planning_agent.assert_called_once_with(
-            task,
-            mock_initialize_llm.return_value,
-            expert_enabled=True,
-            hil=config["hil"],
-            config=config
-        )
+def test_planning_result_processing(mock_initialize_llm, mock_run_planning_agent, test_config):
+    """Test planning component result processing."""
+    mock_run_planning_agent.return_value = """
+Plan:
+1. Initialize project structure
+2. Set up dependencies
+3. Implement core functionality
+4. Add tests
+5. Document API
+"""
+    
+    with patch('streamlit.write') as mock_write:
+        result = planning_component("test task", test_config)
+        
+        assert len(result["plan"]) == 5
+        assert "Initialize project structure" in result["plan"]
+        assert result["success"] is True
 
-def test_planning_display(mock_initialize_llm, mock_run_planning_agent):
-    task = "test task"
-    config = {"provider": "test-provider", "model": "test-model", "hil": False}
-
-    with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = planning_component(task, config)
-
-        assert result['success']
-        mock_write.assert_called()
-        assert mock_write.call_count >= 1  # Plans + tasks
-        mock_run_planning_agent.assert_called_once_with(
-            task,
-            mock_initialize_llm.return_value,
-            expert_enabled=True,
-            hil=config["hil"],
-            config=config
-        )
-
-def test_planning_config_handling(mock_initialize_llm, mock_run_planning_agent):
-    task = "test task"
-    config = {
-        "provider": "test-provider",
-        "model": "test-model",
-        "max_tokens": 2000,
-        "hil": False
-    }
-
-    with patch('streamlit.write') as mock_write, \
-         patch('streamlit.header') as mock_header:
-        result = planning_component(task, config)
-
-        assert result['success']
-        mock_initialize_llm.assert_called_once_with(config["provider"], config["model"])
-        mock_run_planning_agent.assert_called_once_with(
-            task,
-            mock_initialize_llm.return_value,
-            expert_enabled=True,
-            hil=config["hil"],
-            config=config
-        ) 
+def test_planning_with_cowboy_mode(mock_initialize_llm, mock_run_planning_agent):
+    """Test planning component with cowboy mode enabled."""
+    cowboy_config = WebUIConfig(
+        provider="openai",
+        model="openai/gpt-4",
+        research_only=False,
+        cowboy_mode=True,
+        hil=False,
+        web_research_enabled=True
+    )
+    
+    with patch('streamlit.write') as mock_write:
+        result = planning_component("test task", cowboy_config)
+        
+        # Verify planning agent call with cowboy mode
+        call_args = mock_run_planning_agent.call_args[1]
+        assert call_args["cowboy_mode"] is True
+        assert not call_args["hil"] 
