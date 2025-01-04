@@ -85,4 +85,4 @@ class WebUIConfig:
     def get_provider_url(provider: str) -> Optional[str]:
         """Get API URL for a specific provider."""
         config = WebUIConfig.PROVIDER_CONFIGS.get(provider)
-        return config.api_url if config else None 
+        return config.api_url if config else None
