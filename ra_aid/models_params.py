@@ -65,7 +65,7 @@ models_params = {
             "default_temperature": DEFAULT_TEMPERATURE,
             "supports_reasoning_effort": False,
             "latency_coefficient": DEFAULT_BASE_LATENCY,
-            "default_backend": AgentBackendType.CIAYN,
+            "default_backend": AgentBackendType.CREATE_REACT_AGENT,
         },
         "deepseek-reasoner": {
             "token_limit": 65536,
