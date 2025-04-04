@@ -57,6 +57,10 @@ MODEL_COSTS = {
         "input": Decimal("0"),
         "output": Decimal("0"),
     },
+    "deepseek/deepseek-chat-v3-0324": {
+        "input": Decimal("0.00027"),  # $0.27/M input tokens
+        "output": Decimal("0.0011"),  # $1.1/M output tokens
+    },
     # Newly added models
     "weaver-ai": {
         "input": Decimal("0.001875"),
