@@ -65,7 +65,7 @@ models_params = {
             "default_temperature": DEFAULT_TEMPERATURE,
             "supports_reasoning_effort": False,
             "latency_coefficient": DEFAULT_BASE_LATENCY,
-            "default_backend": AgentBackendType.CREATE_REACT_AGENT,
+            "default_backend": AgentBackendType.CIAYN,
         },
         "deepseek-reasoner": {
             "token_limit": 65536,
@@ -264,7 +264,15 @@ models_params = {
             "default_temperature": DEFAULT_TEMPERATURE,
             "supports_reasoning_effort": False,
             "latency_coefficient": DEFAULT_BASE_LATENCY,
-            "default_backend": AgentBackendType.CREATE_REACT_AGENT,
+            "default_backend": AgentBackendType.CIAYN,
+        },
+        "mistralai/mistral-small-3.1-24b-instruct": {
+            "token_limit": 32768,
+            "supports_temperature": True,
+            "default_temperature": DEFAULT_TEMPERATURE,
+            "supports_reasoning_effort": False,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            "default_backend": AgentBackendType.CIAYN,
         },
     },
     "openai-compatible": {

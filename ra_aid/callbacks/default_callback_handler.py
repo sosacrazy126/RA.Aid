@@ -73,6 +73,10 @@ MODEL_COSTS = {
         "input": Decimal("0.002"),
         "output": Decimal("0.006"),
     },
+    "mistralai/mistral-small-3.1-24b-instruct": {
+        "input": Decimal("0.0001"),  # $0.1/M input tokens
+        "output": Decimal("0.0003"),  # $0.3/M output tokens
+    },
 }
 
 
