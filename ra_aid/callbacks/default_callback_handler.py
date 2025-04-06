@@ -57,11 +57,32 @@ MODEL_COSTS = {
         "input": Decimal("0"),
         "output": Decimal("0"),
     },
-    "deepseek/deepseek-chat-v3-0324": {
-        "input": Decimal("0.00027"),  # $0.27/M input tokens
-        "output": Decimal("0.0011"),  # $1.1/M output tokens
+    # Tiered pricing based on prompt tokens (input)
+    "google/gemini-2.5-pro-exp-03-25": {
+        "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
+        "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
+        "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
+        "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
+        "tier_threshold": 200000,
     },
-    # Newly added models
+    "gemini-2.5-pro-exp-03-25": {
+        "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
+        "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
+        "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
+        "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
+        "tier_threshold": 200000,
+    },
+    "gemini-2.5-pro-preview-03-25": {
+        "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
+        "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
+        "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
+        "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
+        "tier_threshold": 200000,
+    },
+    "deepseek/deepseek-chat-v3-0324": {
+        "input": Decimal("0.00027"),
+        "output": Decimal("0.0011"),
+    },
     "weaver-ai": {
         "input": Decimal("0.001875"),
         "output": Decimal("0.00225"),
@@ -114,8 +135,9 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
     trajectory_repo = None
     session_repo = None
 
-    input_cost_per_token: Decimal = Decimal("0.0")
-    output_cost_per_token: Decimal = Decimal("0.0")
+    input_cost_per_token: Decimal = Decimal("0.0")  # Default/non-tiered input cost
+    output_cost_per_token: Decimal = Decimal("0.0") # Default/non-tiered output cost
+    tiered_costs: Optional[Dict[str, Union[Decimal, int]]] = None # Store tiered costs if applicable
 
     session_totals = {
         "cost": Decimal("0.0"),
@@ -167,12 +189,32 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
                 )
             # --- END MODIFICATION ---
 
-        # Fallback logic remains the same
-        model_cost = MODEL_COSTS.get(
-            self.model_name, {"input": Decimal("0"), "output": Decimal("0")}
-        )
-        self.input_cost_per_token = model_cost["input"]
-        self.output_cost_per_token = model_cost["output"]
+        # Fallback logic: Check MODEL_COSTS dictionary
+        model_cost_info = MODEL_COSTS.get(self.model_name)
+        if model_cost_info:
+            if "tier_threshold" in model_cost_info:
+                # Store the tiered structure and set default rates (under threshold)
+                self.tiered_costs = model_cost_info
+                self.input_cost_per_token = model_cost_info.get("input_under_200k", Decimal("0"))
+                self.output_cost_per_token = model_cost_info.get("output_under_200k", Decimal("0"))
+            elif "input" in model_cost_info and "output" in model_cost_info:
+                # Standard non-tiered model
+                self.input_cost_per_token = model_cost_info["input"]
+                self.output_cost_per_token = model_cost_info["output"]
+                self.tiered_costs = None
+            else:
+                # Unknown structure, default to zero
+                logger.warning(f"Unknown cost structure for model {self.model_name} in MODEL_COSTS. Defaulting to 0.")
+                self.input_cost_per_token = Decimal("0")
+                self.output_cost_per_token = Decimal("0")
+                self.tiered_costs = None
+        else:
+            # Model not found, default to zero
+            logger.warning(f"Model {self.model_name} not found in MODEL_COSTS. Defaulting to 0 cost.")
+            self.input_cost_per_token = Decimal("0")
+            self.output_cost_per_token = Decimal("0")
+            self.tiered_costs = None
+
 
     def __repr__(self) -> str:
         return (
@@ -289,9 +331,22 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
             self.completion_tokens = completion_tokens
             self.total_tokens = total_tokens
 
-            # Calculate costs using Decimal arithmetic
-            input_cost = Decimal(prompt_tokens) * self.input_cost_per_token
-            output_cost = Decimal(completion_tokens) * self.output_cost_per_token
+            # Determine cost per token for this specific call, considering tiers
+            current_input_cost_per_token = self.input_cost_per_token
+            current_output_cost_per_token = self.output_cost_per_token
+
+            if self.tiered_costs:
+                threshold = self.tiered_costs.get("tier_threshold", 0)
+                if prompt_tokens > threshold:
+                    current_input_cost_per_token = self.tiered_costs.get("input_over_200k", current_input_cost_per_token)
+                    current_output_cost_per_token = self.tiered_costs.get("output_over_200k", current_output_cost_per_token)
+                else:
+                    current_input_cost_per_token = self.tiered_costs.get("input_under_200k", current_input_cost_per_token)
+                    current_output_cost_per_token = self.tiered_costs.get("output_under_200k", current_output_cost_per_token)
+
+            # Calculate costs using Decimal arithmetic with potentially tiered rates
+            input_cost = Decimal(prompt_tokens) * current_input_cost_per_token
+            output_cost = Decimal(completion_tokens) * current_output_cost_per_token
             cost = input_cost + output_cost
             self.total_cost += cost
 
@@ -339,8 +394,20 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
                 logger.warning("session_id not initialized")
                 return
 
-            input_cost = Decimal(prompt_tokens) * self.input_cost_per_token
-            output_cost = Decimal(completion_tokens) * self.output_cost_per_token
+            # Recalculate cost for the trajectory record using potentially tiered rates for this call
+            current_input_cost_per_token = self.input_cost_per_token
+            current_output_cost_per_token = self.output_cost_per_token
+            if self.tiered_costs:
+                threshold = self.tiered_costs.get("tier_threshold", 0)
+                if prompt_tokens > threshold:
+                    current_input_cost_per_token = self.tiered_costs.get("input_over_200k", current_input_cost_per_token)
+                    current_output_cost_per_token = self.tiered_costs.get("output_over_200k", current_output_cost_per_token)
+                else:
+                    current_input_cost_per_token = self.tiered_costs.get("input_under_200k", current_input_cost_per_token)
+                    current_output_cost_per_token = self.tiered_costs.get("output_under_200k", current_output_cost_per_token)
+
+            input_cost = Decimal(prompt_tokens) * current_input_cost_per_token
+            output_cost = Decimal(completion_tokens) * current_output_cost_per_token
             cost = input_cost + output_cost
 
             # Must Convert Decimal to float compatible JSON serialization in repository
@@ -396,7 +463,12 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
             self.cumulative_prompt_tokens = 0
             self.cumulative_completion_tokens = 0
 
-            self._initialize_model_costs()
+            # Reset cost-related attributes before re-initializing
+            self.input_cost_per_token = Decimal("0.0")
+            self.output_cost_per_token = Decimal("0.0")
+            self.tiered_costs = None
+
+            self._initialize_model_costs() # Re-fetch costs based on current model_name
             if self.session_repo:
                 current_session = self.session_repo.get_current_session_record()
                 if current_session:
