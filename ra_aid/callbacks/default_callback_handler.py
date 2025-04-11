@@ -80,8 +80,8 @@ MODEL_COSTS = {
         "tier_threshold": 200000,
     },
     "deepseek/deepseek-chat-v3-0324": {
-        "input": Decimal("0.00027"),
-        "output": Decimal("0.0011"),
+        "input": Decimal("0.00000027"),
+        "output": Decimal("0.0000011"),
     },
     "weaver-ai": {
         "input": Decimal("0.001875"),
@@ -179,15 +179,7 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
                     return
         except Exception as e:
             logger.debug(f"Could not get model info from litellm: {e}")
-            # --- START MODIFICATION ---
-            config_repo = get_config_repository()
-            show_cost = config_repo.get("show_cost", DEFAULT_SHOW_COST)
-            if show_cost:
-                cpm(
-                    "Could not find model costs from litellm defaulting to MODEL_COSTS table or 0",
-                    border_style="yellow",
-                )
-            # --- END MODIFICATION ---
+            # Fallback logic will proceed
 
         # Fallback logic: Check MODEL_COSTS dictionary
         model_cost_info = MODEL_COSTS.get(self.model_name)
@@ -210,7 +202,16 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
                 self.tiered_costs = None
         else:
             # Model not found, default to zero
-            logger.warning(f"Model {self.model_name} not found in MODEL_COSTS. Defaulting to 0 cost.")
+            logger.warning(f"Model {self.model_name} not found in litellm or MODEL_COSTS. Defaulting to 0 cost.")
+            # --- START MODIFICATION ---
+            config_repo = get_config_repository()
+            show_cost = config_repo.get("show_cost", DEFAULT_SHOW_COST)
+            if show_cost:
+                cpm(
+                    f"Could not find costs for model '{self.model_name}'. Defaulting to 0.0.",
+                    border_style="yellow",
+                )
+            # --- END MODIFICATION ---
             self.input_cost_per_token = Decimal("0")
             self.output_cost_per_token = Decimal("0")
             self.tiered_costs = None
