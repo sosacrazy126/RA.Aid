@@ -341,7 +341,22 @@ class CiaynAgent:
 
         try:
             code = self.strip_code_markup(code)
-            code = fix_triple_quote_contents(code)
+            
+            # Only call fix_triple_quote_contents if:
+            # 1. The code is not valid Python AND
+            # 2. The first line includes "put_complete_file_contents"
+            is_valid_python = True
+            try:
+                ast.parse(code)
+            except SyntaxError:
+                is_valid_python = False
+            
+            # Check if first line includes "put_complete_file_contents"
+            first_line = code.splitlines()[0] if code.splitlines() else ""
+            contains_put_complete = "put_complete_file_contents" in first_line
+            
+            if not is_valid_python and contains_put_complete:
+                code = fix_triple_quote_contents(code)
 
             # Check for multiple tool calls that can be bundled
             tool_calls = self._detect_multiple_tool_calls(code)
@@ -723,7 +738,7 @@ class CiaynAgent:
                 )
 
             ra_aid.console.formatting.print_warning(
-                f"Tool execution failed for `{tool_name if tool_name else "unknown"}`:\nError: {str(e)}\n\nCode:\n\n````\n{code}\n````",
+                f"Tool execution failed for `{tool_name if tool_name else 'unknown'}`:\nError: {str(e)}\n\nCode:\n\n````\n{code}\n````",
                 title="Tool Error",
             )
             # Re-raise the original error if it's already a ToolExecutionError and we didn't modify it
