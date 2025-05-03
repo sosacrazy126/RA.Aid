@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
+import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the button
 import { Trajectory } from '../../models/trajectory';
 
 interface GenericTrajectoryProps {
@@ -22,7 +23,16 @@ export const GenericTrajectory: React.FC<GenericTrajectoryProps> = ({ trajectory
   const toolResult = trajectory.toolResult || {};
   const stepData = trajectory.stepData || {};
   const isError = trajectory.isError;
-  
+
+  // Construct the summary text for display and copying
+  let summaryText = recordType || 'Generic Event';
+  if (toolName) {
+    summaryText += `: ${toolName}`;
+  }
+  if (stepData.display && typeof stepData.display === 'string') {
+    summaryText += ` ${stepData.display}`;
+  }
+
   // Format timestamp
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -33,23 +43,30 @@ export const GenericTrajectory: React.FC<GenericTrajectoryProps> = ({ trajectory
       <CollapsibleTrigger className="w-full text-left hover:bg-accent/30 cursor-pointer">
         <CardHeader className="py-3 px-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
+             {/* Left Side: Icon and Title */}
+            <div className="flex items-center space-x-3 flex-1 min-w-0 mr-2">
               <div className="flex-shrink-0 text-lg">📋</div>
-              <CardTitle className="text-base font-medium">
-                {recordType}
+              <CardTitle className="text-base font-medium truncate">{/* Show summary text */}
+                {summaryText}
               </CardTitle>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {formatTime(trajectory.created)}
+            {/* Right Side: Copy Button and Timestamp */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              {/* Always visible copy button with summary text */}
+              <CopyToClipboardButton
+                textToCopy={summaryText}
+                tooltipText="Copy Summary"
+                className="h-6 w-6 p-1 text-muted-foreground hover:text-foreground"
+              />
+              <div className="text-xs text-muted-foreground">
+                {formatTime(trajectory.created)}
+              </div>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
-            {toolName}
-            {stepData.display && typeof stepData.display === 'string' && `: ${stepData.display}`}
-          </div>
+          {/* Secondary display line removed as info is now in title */}
         </CardHeader>
       </CollapsibleTrigger>
-      
+
       <CollapsibleContent>
         <CardContent className="py-3 px-4 border-t border-border bg-card/50">
           {Object.keys(stepData).length > 0 && (
@@ -60,7 +77,7 @@ export const GenericTrajectory: React.FC<GenericTrajectoryProps> = ({ trajectory
               </pre>
             </div>
           )}
-          
+
           {Object.keys(toolParameters).length > 0 && (
             <div className="mb-4">
               <h4 className="text-sm font-semibold mb-2">Parameters:</h4>
@@ -69,7 +86,7 @@ export const GenericTrajectory: React.FC<GenericTrajectoryProps> = ({ trajectory
               </pre>
             </div>
           )}
-          
+
           {(!isError && Object.keys(toolResult).length > 0) && (
             <div>
               <h4 className="text-sm font-semibold mb-2">Result:</h4>
@@ -78,7 +95,7 @@ export const GenericTrajectory: React.FC<GenericTrajectoryProps> = ({ trajectory
               </pre>
             </div>
           )}
-          
+
           {isError && (
             <div>
               <h4 className="text-sm font-semibold mb-2 text-red-500">Error:</h4>
@@ -88,7 +105,7 @@ export const GenericTrajectory: React.FC<GenericTrajectoryProps> = ({ trajectory
               </pre>
             </div>
           )}
-          
+
           {trajectory.currentCost !== null && (
             <div className="mt-3 pt-3 border-t border-border/50 text-xs text-muted-foreground">
               <span className="flex items-center">

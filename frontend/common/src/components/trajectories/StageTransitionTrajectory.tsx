@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { Trajectory } from '../../models/trajectory';
+import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the button
 
 interface StageTransitionTrajectoryProps {
   trajectory: Trajectory;
@@ -37,19 +38,25 @@ export const StageTransitionTrajectory: React.FC<StageTransitionTrajectoryProps>
   // Get the appropriate icon
   const stageIcon = getStageIcon(stage);
 
+  // Construct the text to copy (use the title which reflects the stage change)
+  const textToCopy = title || '';
+
   return (
     <Collapsible className="w-full border border-border rounded-md overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
       <CollapsibleTrigger className="w-full text-left hover:bg-accent/30 cursor-pointer">
         <CardHeader className="py-3 px-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 flex-grow"> {/* Added flex-grow */}
               <div className="flex-shrink-0 text-lg">{stageIcon}</div>
               <CardTitle className="text-base font-medium">
                 {title}
               </CardTitle>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {formatTime(trajectory.created)}
+            <div className="flex items-center space-x-2 flex-shrink-0"> {/* Wrapper for button and time */}
+              <CopyToClipboardButton textToCopy={textToCopy} />
+              <div className="text-xs text-muted-foreground">
+                {formatTime(trajectory.created)}
+              </div>
             </div>
           </div>
         </CardHeader>

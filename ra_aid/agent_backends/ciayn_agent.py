@@ -88,6 +88,12 @@ def validate_function_call_pattern(s: str) -> bool:
         return True
 
 
+def wrap_custom_tool_call_result(result) -> BaseMessage:
+    if isinstance(result, BaseMessage):
+        return result
+    return AIMessage(content=str(result))
+
+
 class CiaynAgent:
     """Code Is All You Need (CIAYN) agent that uses generated Python code for tool interaction.
 
@@ -128,7 +134,6 @@ class CiaynAgent:
         "request_implementation",
         "read_file_tool",
         "emit_research_notes",
-        "ripgrep_search",
         "plan_implementation_completed",
         "request_research_and_implementation",
         "run_shell_command",
@@ -145,7 +150,6 @@ class CiaynAgent:
         "request_implementation",
         "read_file_tool",
         "emit_research_notes",
-        "ripgrep_search",
         "plan_implementation_completed",
         "request_research_and_implementation",
         "run_shell_command",
@@ -684,8 +688,8 @@ class CiaynAgent:
 
             # Only display console output for custom tools
             if is_custom_tool:
-                custom_tool_output = f"Executing custom tool: {tool_name}\\n"
-                custom_tool_output += f"\\n\tResult: {result}"
+                custom_tool_output = f"Executing custom tool: {tool_name}\n"
+                custom_tool_output += f"\n\tResult: {result}"
                 ra_aid.console.formatting.console.print(
                     ra_aid.console.formatting.Panel(
                         ra_aid.console.formatting.Markdown(custom_tool_output.strip()),
@@ -693,7 +697,8 @@ class CiaynAgent:
                         border_style="magenta",
                     )
                 )
-
+                # Coerce custom tool call responses to langchain BaseMessage
+                result = wrap_custom_tool_call_result(result)
             return result
         except Exception as e:
             error_msg = f"Error: {str(e)} \\n Could not execute code: {code}"
@@ -780,6 +785,9 @@ class CiaynAgent:
 
         if not fallback_response:
             self.chat_history.append(err_msg)
+            if not self.fallback_handler.fallback_enabled:
+                # Fallback disabled; skip misleading warning
+                return ""
             logger.info(
                 f"Tool fallback was attempted but did not succeed. Original error: {str(e)}"
             )

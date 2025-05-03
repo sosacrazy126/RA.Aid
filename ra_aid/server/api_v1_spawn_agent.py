@@ -2,6 +2,7 @@
 
 import threading
 import logging
+import json # Added for step_data serialization
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -168,7 +169,6 @@ def run_agent_thread(
             # Log the retrieved thread_id
             logger.debug(f"Set and retrieved thread_id='{thread_id_str}' from config for session_id={session_id}")
 
-            # Create a human input record with the message and associate it with the session
             human_input_id = None # Initialize variable
             try:
                 # Log session_id before creation
@@ -181,11 +181,46 @@ def run_agent_thread(
                 )
                 human_input_id = human_input_record.id # Store the ID
                 logger.debug(f"Created human input record for session {session_id} with ID {human_input_id}")
+
+                # Create the user query trajectory immediately after human input
+                try:
+                    if human_input_id is None:
+                        logger.warning(f"Attempting to create user_query trajectory for session {session_id} but human_input_id is None. Proceeding anyway.")
+                    logger.debug(f"Creating user_query trajectory record for session {session_id}, human_input_id {human_input_id}.")
+                    trajectory_repo.create(
+                        session_id=session_id,
+                        human_input_id=human_input_id,
+                        record_type="user_query",
+                        step_data={
+                            "display_title": "User Query",
+                            "query": message,
+                        },
+                    )
+
+                    logger.info(f"Created user query trajectory for session {session_id}.")
+                except Exception as e:
+                    logger.exception(f"Error creating user query trajectory for session {session_id}: {e}")
+
+                # --- > BROADCAST SESSION DETAILS UPDATE <--- START
+                # Retrieve the full session details *after* human input is added
+                # This ensures the display_name is calculated based on the human input.
+                updated_session_model = session_repo.get(session_id)
+                if updated_session_model:
+                    send_broadcast({
+                        'type': 'session_details_update', # Use a specific type
+                        'payload': updated_session_model.model_dump(mode='json')
+                    })
+                    logger.info(f"Broadcasted full session details update for session {session_id}")
+                else:
+                    logger.error(f"Could not retrieve session {session_id} after creating human input for broadcast.")
+                # --- > BROADCAST SESSION DETAILS UPDATE <--- END
+
             except Exception as e:
                 # Log error but don't stop the agent thread
                 logger.error(f"Failed to create human input record for session {session_id}: {str(e)}")
 
             # --- > Add Stage Transition Trajectory <--- START
+            # This now happens *after* the user_query trajectory
             if human_input_id: # Only proceed if human input was created successfully
                 try:
                     logger.debug(f"Creating stage_transition trajectory record for session {session_id}, human_input_id {human_input_id}.")

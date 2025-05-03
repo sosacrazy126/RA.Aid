@@ -12,6 +12,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from rich.prompt import Confirm
 
 from ra_aid import print_error, print_stage_header
 from ra_aid.__version__ import __version__
@@ -52,6 +53,8 @@ from ra_aid.database.repositories.session_repository import SessionRepositoryMan
 from ra_aid.database.repositories.related_files_repository import (
     RelatedFilesRepositoryManager,
 )
+
+
 from ra_aid.database.repositories.work_log_repository import WorkLogRepositoryManager
 from ra_aid.database.repositories.config_repository import (
     ConfigRepositoryManager,
@@ -240,6 +243,7 @@ def launch_server(host: str, port: int, args):
                 "show_cost": args.show_cost,
                 "force_reasoning_assistance": args.reasoning_assistance,
                 "disable_reasoning_assistance": args.no_reasoning_assistance,
+                "cowboy_mode": args.cowboy_mode,
             }
         )
 
@@ -248,7 +252,7 @@ def launch_server(host: str, port: int, args):
 
 def parse_arguments(args=None):
     ANTHROPIC_DEFAULT_MODEL = DEFAULT_MODEL
-    OPENAI_DEFAULT_MODEL = "gpt-4o"
+    OPENAI_DEFAULT_MODEL = "o4-mini"
 
     # Case-insensitive log level argument type
     def log_level_type(value):
@@ -297,11 +301,7 @@ Examples:
         default=(
             "gemini"
             if os.getenv("GEMINI_API_KEY")
-            else (
-                "openai"
-                if (os.getenv("OPENAI_API_KEY") and not os.getenv("ANTHROPIC_API_KEY"))
-                else "anthropic"
-            )
+            else ("openai" if os.getenv("OPENAI_API_KEY") else "anthropic")
         ),
         choices=VALID_PROVIDERS,
         help="The LLM provider to use",
@@ -535,22 +535,41 @@ Examples:
 
     # Handle expert provider/model defaults
     if not parsed_args.expert_provider:
-        # Check for Gemini API key first
-        if os.environ.get("GEMINI_API_KEY"):
-            parsed_args.expert_provider = "gemini"
-            parsed_args.expert_model = "gemini-2.5-pro-preview-03-25"
-        # Check for OpenAI API key next
-        elif os.environ.get("OPENAI_API_KEY"):
+        # Priority: Explicit EXPERT_* -> Both Gemini/OpenAI -> Gemini -> Anthropic Expert -> DeepSeek -> Main Provider Fallback
+        if os.environ.get("EXPERT_OPENAI_API_KEY"):
             parsed_args.expert_provider = "openai"
-            parsed_args.expert_model = None  # Will be auto-selected
-        # If no OpenAI key but DeepSeek key exists, use DeepSeek
-        elif os.environ.get("DEEPSEEK_API_KEY"):
+            parsed_args.expert_model = None  # Will be auto-selected later
+        elif os.environ.get("EXPERT_ANTHROPIC_API_KEY"):
+             parsed_args.expert_provider = "anthropic"
+             # Use main anthropic model if expert model not specified
+             parsed_args.expert_model = parsed_args.expert_model or ANTHROPIC_DEFAULT_MODEL
+        # Add other explicit EXPERT_* checks here if needed in the future...
+
+        # NEW: Check if both base Gemini and OpenAI keys are present (and no specific EXPERT_* key was found)
+        elif os.environ.get("GEMINI_API_KEY") and os.environ.get("OPENAI_API_KEY"):
+            # Both keys present, default main to Gemini (already done) and expert to OpenAI
+            parsed_args.expert_provider = "openai"
+            # Let llm.py auto-select 'o3' unless user specified --expert-model
+            parsed_args.expert_model = parsed_args.expert_model or None
+
+        # Fallback checks for individual base keys (if the combined check didn't match or only one key exists)
+        elif os.environ.get("GEMINI_API_KEY"): # Check main Gemini key as fallback
+            parsed_args.expert_provider = "gemini"
+            # Use gemini-2.5-pro if not specified, matching main model default
+            parsed_args.expert_model = parsed_args.expert_model or "gemini-2.5-pro-preview-03-25"
+        elif os.environ.get("DEEPSEEK_API_KEY"): # Check main Deepseek key as fallback
             parsed_args.expert_provider = "deepseek"
-            parsed_args.expert_model = "deepseek-reasoner"
+            parsed_args.expert_model = "deepseek-reasoner" # Specific default for Deepseek expert
         else:
-            # Fall back to main provider if neither is available
-            parsed_args.expert_provider = parsed_args.provider
-            parsed_args.expert_model = parsed_args.model
+            # Final Fallback: Use main provider settings if none of the above conditions met
+            # Special-case OpenAI main provider: we want to use the provider but let later logic choose the best expert model.
+            if parsed_args.provider == "openai":
+                parsed_args.expert_provider = "openai"
+                parsed_args.expert_model = None  # trigger auto-selection later (prefer o3)
+            else:
+                # For other main providers, use their settings as the expert fallback
+                parsed_args.expert_provider = parsed_args.provider
+                parsed_args.expert_model = parsed_args.model
 
     # Validate temperature range if provided
     if parsed_args.temperature is not None and not (
@@ -747,6 +766,14 @@ def main():
 
     # Launch web interface if requested
     if args.server:
+        if args.cowboy_mode:
+            if not Confirm.ask(
+                "WARNING: Running in server mode with cowboy mode enabled allows the Web UI " \
+                "to execute shell commands without confirmation. Continue?", default=False
+            ):
+                print("Exiting due to user cancellation.")
+                sys.exit(0)
+
         launch_server(args.server_host, args.server_port, args)
         return
 
@@ -863,6 +890,7 @@ def main():
                 config_repo.set(
                     "custom_tools_enabled", True if args.custom_tools else False
                 )
+                config_repo.set("cowboy_mode", args.cowboy_mode) # Also add here for non-server mode
 
                 # Validate custom tools function signatures
                 get_custom_tools()
@@ -989,6 +1017,7 @@ def main():
                     config_repo.set(
                         "disable_reasoning_assistance", args.no_reasoning_assistance
                     )
+                    config_repo.set("cowboy_mode", args.cowboy_mode) # Chat mode also needs cowboy mode
 
                     # Set modification tools based on use_aider flag
                     set_modification_tools(args.use_aider)
@@ -1060,23 +1089,46 @@ def main():
                     print_error(error_message)
                     sys.exit(1)
 
+                base_task = "" # Initialize base_task
                 if args.message:  # Only set base_task if message exists
                     base_task = args.message
 
                 # Record CLI input in database
+                human_input_id = None # Initialize before try
+                session_id = None # Initialize before try
                 try:
-                    # Using get_human_input_repository() to access the repository from context
                     human_input_repository = get_human_input_repository()
-                    # Get current session ID
-                    session_id = session_repo.get_current_session_id()
-                    human_input_repository.create(
+                    session_id = session_repo.get_current_session_id() # Capture session_id here
+                    human_input_record = human_input_repository.create( # Capture record
                         content=base_task, source="cli", session_id=session_id
                     )
+                    human_input_id = human_input_record.id # Get ID
                     # Run garbage collection to ensure we don't exceed 100 inputs
                     human_input_repository.garbage_collect()
                     logger.debug(f"Recorded CLI input: {base_task}")
                 except Exception as e:
                     logger.error(f"Failed to record CLI input: {str(e)}")
+                    human_input_id = None # Ensure None on failure
+
+                if human_input_id:
+                    try:
+                        trajectory_repo = get_trajectory_repository() # Get the repository instance
+                        logger.debug(f"Creating user_query trajectory record for session {session_id} (CLI), human_input_id {human_input_id}.")
+                        trajectory_repo.create(
+                            session_id=session_id,
+                            human_input_id=human_input_id,
+                            record_type="user_query",
+                            step_data={
+                                "display_title": "User Query",
+                                "query": base_task,
+                            },
+                        )
+                        logger.info(f"Created user_query trajectory for session {session_id} (CLI).")
+                    except Exception as e:
+                        logger.exception(f"Error creating user_query trajectory for session {session_id} (CLI): {e}")
+                else:
+                    logger.warning(f"Skipping user_query trajectory creation for session {session_id} (CLI) due to missing human_input_id.")
+
                 config = {
                     "configurable": {"thread_id": str(uuid.uuid4())},
                     "recursion_limit": args.recursion_limit,
@@ -1126,6 +1178,8 @@ def main():
                 config_repo.set(
                     "disable_reasoning_assistance", args.no_reasoning_assistance
                 )
+                # Store cowboy_mode for the main agent run
+                config_repo.set("cowboy_mode", args.cowboy_mode)
 
                 # Set modification tools based on use_aider flag
                 set_modification_tools(args.use_aider)
@@ -1135,14 +1189,14 @@ def main():
 
                 # Record stage transition in trajectory
                 trajectory_repo = get_trajectory_repository()
-                human_input_id = get_human_input_repository().get_most_recent_id()
+                # Use the human_input_id captured earlier for stage transition
                 trajectory_repo.create(
                     step_data={
                         "stage": "research_stage",
                         "display_title": "Research Stage",
                     },
                     record_type="stage_transition",
-                    human_input_id=human_input_id,
+                    human_input_id=human_input_id, # Pass the potentially None ID
                 )
 
                 # Initialize research model with potential overrides

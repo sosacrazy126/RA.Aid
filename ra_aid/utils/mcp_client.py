@@ -1,6 +1,8 @@
 import asyncio
 import inspect
 import threading
+from typing import Any
+from langchain.tools import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 class MultiServerMCPClient_Sync:
@@ -37,19 +39,17 @@ class MultiServerMCPClient_Sync:
 
     def _wrap_async_tool(self, async_tool):
         """Creates a synchronous wrapper for an async tool with proper signature."""
-        
-        # Get the schema fields for parameters
+
         schema_fields = {}
-        
-        # Handle different schema formats
+
         if async_tool.args_schema:
             if isinstance(async_tool.args_schema, dict) and 'properties' in async_tool.args_schema:
                 # JSON Schema format
                 properties = async_tool.args_schema.get('properties', {})
                 required_params = async_tool.args_schema.get('required', [])
-                
+
                 for param_name, param_info in properties.items():
-                    # Map JSON Schema types to Python types
+                     # Map JSON Schema types to Python types
                     type_map = {
                         'string': str,
                         'integer': int,
@@ -58,19 +58,17 @@ class MultiServerMCPClient_Sync:
                         'array': list,
                         'object': dict
                     }
-                    
-                    param_type = type_map.get(param_info.get('type'), any)
-                    
-                    # Set default to inspect._empty if parameter is required
+                    param_type = type_map.get(param_info.get('type'), Any)
+
                     if param_name in required_params:
                         default_value = inspect._empty
                     else:
                         default_value = param_info.get('default', None)
-                    
+
                     schema_fields[param_name] = (param_type, default_value)
             else:
                 raise NotImplementedError("Only JSON Schema format is supported for tool.args_schema")
-        
+
         # Create parameter string for the dynamic function definition
         param_parts = []
         for name, (type_hint, default) in schema_fields.items():
@@ -79,13 +77,29 @@ class MultiServerMCPClient_Sync:
             if default is not inspect._empty:
                 param_part += f" = {repr(default)}"
             param_parts.append(param_part)
-        
+
         param_str = ", ".join(param_parts)
 
         # Escaped tool name (to avoid conflicts with Python keywords and leading decimals in names)
-        _async_tool_name = f'_{async_tool.name}'.replace('-', '_')
-        
-        # Create a function with the proper signature
+        _async_tool_name = f'_{async_tool.name}'.replace('-', '_').replace('.', '_')
+
+        def _execute_async_func(kwargs):
+            filtered_kwargs = {}
+            for k, v in kwargs.items():
+                _, default_value = schema_fields.get(k, (Any, inspect._empty))
+                if default_value is inspect._empty:
+                    filtered_kwargs[k] = v
+                elif v != default_value:
+                    filtered_kwargs[k] = v
+                else:
+                    # v == default_value: skip passing values already declared as defaults
+                    pass
+
+            return asyncio.run_coroutine_threadsafe(
+                async_tool.coroutine(**filtered_kwargs),
+                self.loop
+            ).result()
+
         func_str = f"""
 def {_async_tool_name}({param_str}):
     \"\"\"
@@ -94,24 +108,16 @@ def {_async_tool_name}({param_str}):
     kwargs = locals()
     return _execute_async_func(kwargs)
 """
-        
-        # Create namespace with necessary components
+
         namespace = {
-            '_execute_async_func': lambda kwargs: asyncio.run_coroutine_threadsafe(
-                async_tool.coroutine(**kwargs), 
-                self.loop
-            ).result()
+            '_execute_async_func': _execute_async_func,
+            'Any': Any,
         }
-        
-        # Execute the function definition in the prepared namespace
+
         exec(func_str, namespace)
-        
-        # Get the newly created function
+
         sync_func = namespace[_async_tool_name]
-        
-        # Create a new StructuredTool with the sync function
-        from langchain.tools import StructuredTool
-        
+
         return StructuredTool(
             name=_async_tool_name,
             description=async_tool.description,

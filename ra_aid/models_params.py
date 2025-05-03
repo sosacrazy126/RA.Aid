@@ -31,7 +31,7 @@ models_params = {
             "supports_think_tag": True,
             "default_temperature": DEFAULT_TEMPERATURE,
             "latency_coefficient": DEFAULT_BASE_LATENCY,
-            "default_backend": AgentBackendType.CIAYN
+            "default_backend": AgentBackendType.CIAYN,
         },
         "accounts/fireworks/models/llama-v3-70b-instruct": {
             "token_limit": 8192,
@@ -91,6 +91,58 @@ models_params = {
         "chatgpt-4o-latest": {
             "token_limit": 128000,
             "default_backend": AgentBackendType.CIAYN,
+        },
+        "o4-mini": {
+            "token_limit": 200000,
+            "supports_temperature": False,
+            "supports_reasoning_effort": True,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            "default_backend": AgentBackendType.CREATE_REACT_AGENT,
+        },
+        "o4-mini-2025-04-16": {
+            "token_limit": 200000,
+            "supports_temperature": False,
+            "supports_reasoning_effort": True,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            "default_backend": AgentBackendType.CREATE_REACT_AGENT,
+        },
+        "o3": {
+            "token_limit": 200000,
+            "supports_temperature": False,
+            "supports_reasoning_effort": True,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            "default_backend": AgentBackendType.CIAYN,
+        },
+        "o3-2025-04-16": {
+            "token_limit": 200000,
+            "supports_temperature": False,
+            "supports_reasoning_effort": True,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            "default_backend": AgentBackendType.CIAYN,
+        },
+        "gpt-4.1": {
+            "token_limit": 1000000,
+            "supports_temperature": True,
+            "default_temperature": DEFAULT_TEMPERATURE,
+            "supports_reasoning_effort": False,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            # "default_backend": AgentBackendType.CIAYN,
+        },
+        "gpt-4.1-mini": {
+            "token_limit": 1000000,
+            "supports_temperature": True,
+            "default_temperature": DEFAULT_TEMPERATURE,
+            "supports_reasoning_effort": False,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            # "default_backend": AgentBackendType.CIAYN,
+        },
+        "gpt-4.1-nano": {
+            "token_limit": 1000000,
+            "supports_temperature": True,
+            "default_temperature": DEFAULT_TEMPERATURE,
+            "supports_reasoning_effort": False,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            # "default_backend": AgentBackendType.CIAYN,
         },
         "gpt-3.5-turbo-0125": {
             "token_limit": 16385,
@@ -248,6 +300,12 @@ models_params = {
             "supports_reasoning_effort": True,
             "latency_coefficient": DEFAULT_BASE_LATENCY,
         },
+        "o3-mini-2025-01-31": {
+            "token_limit": 200000,
+            "supports_temperature": False,
+            "supports_reasoning_effort": True,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+        },
     },
     "openrouter": {
         "qwen/qwen-2.5-coder-32b-instruct": {
@@ -271,6 +329,14 @@ models_params = {
             "supports_temperature": True,
             "default_temperature": DEFAULT_TEMPERATURE,
             "supports_reasoning_effort": False,
+            "latency_coefficient": DEFAULT_BASE_LATENCY,
+            "default_backend": AgentBackendType.CIAYN,
+        },
+        "google/gemini-2.5-pro-preview-03-25": {
+            "token_limit": 1048576,
+            "max_tokens": 1048576,
+            "supports_temperature": True,
+            "default_temperature": 1.0,
             "latency_coefficient": DEFAULT_BASE_LATENCY,
             "default_backend": AgentBackendType.CIAYN,
         },

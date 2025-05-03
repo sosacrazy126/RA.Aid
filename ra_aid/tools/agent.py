@@ -395,7 +395,8 @@ def request_task_implementation(task_spec: str) -> str:
         human_input_id = get_human_input_repository().get_most_recent_id()
         trajectory_repo.create(
             step_data={
-                "task": task_spec,
+                "task": task_spec,  # Keep for display
+                "spec": task_spec,  # Add for copy button
                 "display_title": "Task",
             },
             record_type="task_display",

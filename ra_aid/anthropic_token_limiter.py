@@ -281,17 +281,29 @@ def get_model_token_limit(
             )
 
         # Fallback to models_params dict
-        # Normalize model name for fallback lookup (e.g. claude-2 -> claude2)
-        normalized_name = model_name.replace("-", "")
         provider_tokens = models_params.get(provider, {})
-        if normalized_name in provider_tokens:
-            max_input_tokens = provider_tokens[normalized_name]["token_limit"]
-            logger.debug(
-                f"Found token limit for {provider}/{model_name}: {max_input_tokens}"
-            )
-        else:
-            max_input_tokens = None
-            logger.debug(f"Could not find token limit for {provider}/{model_name}")
+        max_input_tokens = None
+
+        # 1. Try the original model name first
+        if model_name in provider_tokens:
+            max_input_tokens = provider_tokens[model_name].get("token_limit")
+            if max_input_tokens:
+                logger.debug(
+                    f"Found token limit for {provider}/{model_name} (direct lookup): {max_input_tokens}"
+                )
+
+        # 2. If not found, try the normalized name (remove hyphens)
+        if max_input_tokens is None:
+            normalized_name = model_name.replace("-", "")
+            if normalized_name != model_name and normalized_name in provider_tokens:
+                max_input_tokens = provider_tokens[normalized_name].get("token_limit")
+                if max_input_tokens:
+                    logger.debug(
+                        f"Found token limit for {provider}/{model_name} (normalized lookup as {normalized_name}): {max_input_tokens}"
+                    )
+
+        if max_input_tokens is None:
+            logger.debug(f"Could not find token limit for {provider}/{model_name} in models_params")
 
         return adjust_claude_37_token_limit(max_input_tokens, model)
 

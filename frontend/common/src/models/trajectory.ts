@@ -226,27 +226,27 @@ export function validateTrajectory(data: unknown): Trajectory {
  */
 export function safeBackendToTrajectory(data: unknown): Trajectory | null {
   // Log the raw data being passed in for conversion
-  console.log('Converting backend trajectory data:', JSON.stringify(data, null, 2));
+  // console.log('Converting backend trajectory data:', JSON.stringify(data, null, 2));
 
   // Pre-check if JSON string fields exist to help with debugging
   if (data && typeof data === 'object') {
     const rawData = data as Record<string, any>;
 
     // Log the data types of relevant fields to help with debugging
-    console.log('Field data types:', {
-      tool_parameters: rawData.tool_parameters && typeof rawData.tool_parameters,
-      tool_result: rawData.tool_result && typeof rawData.tool_result,
-      step_data: rawData.step_data && typeof rawData.step_data,
-      error_details: rawData.error_details && typeof rawData.error_details
-    });
+    // console.log('Field data types:', {
+    //   tool_parameters: rawData.tool_parameters && typeof rawData.tool_parameters,
+    //   tool_result: rawData.tool_result && typeof rawData.tool_result,
+    //   step_data: rawData.step_data && typeof rawData.step_data,
+    //   error_details: rawData.error_details && typeof rawData.error_details
+    // });
 
     // Show raw string content for string fields that should be objects
-    if (rawData.tool_parameters && typeof rawData.tool_parameters === 'string') {
-      console.log('tool_parameters string content:', rawData.tool_parameters);
-    }
-    if (rawData.step_data && typeof rawData.step_data === 'string') {
-      console.log('step_data string content:', rawData.step_data);
-    }
+    // if (rawData.tool_parameters && typeof rawData.tool_parameters === 'string') {
+    //   console.log('tool_parameters string content:', rawData.tool_parameters);
+    // }
+    // if (rawData.step_data && typeof rawData.step_data === 'string') {
+    //   console.log('step_data string content:', rawData.step_data);
+    // }
   }
 
   try {
@@ -255,11 +255,11 @@ export function safeBackendToTrajectory(data: unknown): Trajectory | null {
       // validateBackendTrajectory now handles JSON string parsing
       const validatedBackend = validateBackendTrajectory(data);
       // Log the validated backend data
-      console.log('Successfully validated backend trajectory:', JSON.stringify(validatedBackend, null, 2));
+      // console.log('Successfully validated backend trajectory:', JSON.stringify(validatedBackend, null, 2));
 
       // Convert and log the result
       const result = backendToTrajectory(validatedBackend);
-      console.log('Successfully converted to frontend trajectory:', JSON.stringify(result, null, 2));
+      // console.log('Successfully converted to frontend trajectory:', JSON.stringify(result, null, 2));
 
       return result;
     } catch (validationError) {

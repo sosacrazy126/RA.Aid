@@ -11,6 +11,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Trajectory } from '../../models/trajectory';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the button
 
 interface TaskTrajectoryProps {
   trajectory: Trajectory;
@@ -18,9 +19,10 @@ interface TaskTrajectoryProps {
 
 // Renamed component from ResearchNotesTrajectory to TaskTrajectory
 export const TaskTrajectory: React.FC<TaskTrajectoryProps> = ({ trajectory }) => {
-  // Updated data extraction logic: Use step_data.task instead of toolParameters.notes
+  // Updated data extraction logic: Use step_data.task for display, step_data.spec for copying
   const { stepData, created } = trajectory;
-  const taskContent = stepData?.task ?? '(No task specification)';
+  const taskContent = stepData?.task ?? '(No task specification for display)'; // Content for rendering
+  const specContent = stepData?.spec ?? ''; // Content for copying, default to empty string
   // Set initial state to true so the collapsible is open by default
   const [isOpen, setIsOpen] = React.useState(true);
 
@@ -64,17 +66,18 @@ export const TaskTrajectory: React.FC<TaskTrajectoryProps> = ({ trajectory }) =>
     <Card className="mb-4">
       <Collapsible open={isOpen} onOpenChange={setIsOpen} defaultOpen={true}> {/* Ensure defaultOpen is true */}
         <CollapsibleTrigger asChild>
-          <CardHeader className="py-3 px-4 cursor-pointer hover:bg-muted/50">
-            <div className="flex justify-between items-center">
+          <CardHeader className="py-3 px-4 cursor-pointer hover:bg-muted/50 relative"> {/* Added relative positioning */}
+            <div className="flex justify-between items-start"> {/* Changed to items-start */}
               {/* Left side: Icon and summary */}
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 mr-4"> {/* Added margin-right */}
                 {/* Changed icon from BookText to ClipboardList */}
                 <ClipboardList className="h-4 w-4 text-muted-foreground" />
                 {/* Updated title from "Research Notes" to "Task Specification" */}
-                <span>Task Specification</span>
+                <span className="font-medium">Task Specification</span> {/* Added font-medium */}
               </div>
-              {/* Right side: Timestamp */}
-              <div className="flex items-center space-x-2">
+              {/* Right side: Timestamp and Copy Button */}
+              <div className="flex items-center space-x-2 absolute top-3 right-4"> {/* Positioned top-right */}
+                 <CopyToClipboardButton textToCopy={specContent} />
                 <div className="text-xs text-muted-foreground">
                   {formattedTime}
                 </div>
@@ -92,7 +95,7 @@ export const TaskTrajectory: React.FC<TaskTrajectoryProps> = ({ trajectory }) =>
                 remarkPlugins={[remarkGfm]}
                 components={components} // Use the defined custom components
               >
-                {/* Changed variable from notes to taskContent */}
+                {/* Changed variable from notes to taskContent (for display) */}
                 {taskContent}
               </ReactMarkdown>
             </div>

@@ -10,6 +10,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Trajectory } from '../../models/trajectory';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'; // Import CollapsibleTrigger
+import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the button
 
 interface TaskCompletedTrajectoryProps {
   trajectory: Trajectory;
@@ -74,8 +75,13 @@ export const TaskCompletedTrajectory: React.FC<TaskCompletedTrajectoryProps> = (
                 <CheckCircle className="h-4 w-4 text-green-500" /> {/* Using CheckCircle */}
                 <span>Task Completed</span> {/* Static title */}
               </div>
-              {/* Right side: Timestamp */}
+              {/* Right side: Copy Button and Timestamp */}
               <div className="flex items-center space-x-2">
+                {/* Add the copy button here */}
+                <CopyToClipboardButton
+                  textToCopy={"# Task Completed\n\n" + message}
+                  className="p-1 h-6 w-6 hover:bg-muted rounded" // Adjust styling as needed
+                />
                 <div className="text-xs text-muted-foreground">
                   {formattedTime}
                 </div>

@@ -3,6 +3,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { Trajectory } from '../../models/trajectory';
+import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the button
 
 interface ProjectStatusTrajectoryProps {
   trajectory: Trajectory;
@@ -18,6 +19,14 @@ export const ProjectStatusTrajectory: React.FC<ProjectStatusTrajectoryProps> = (
   // Format timestamp to HH:MM AM/PM
   const formattedTime = new Date(trajectory.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  // Construct the summary text for copying
+  let summaryTextToCopy = `# ${displayTitle}: ${projectStatus}\n\n`; // Start with title and status
+  if (fileCount !== undefined && totalFiles !== undefined) {
+     summaryTextToCopy += `Files Scanned: ${fileCount} out of ${totalFiles}`; // Add scan info
+  } else if (fileCount !== undefined) {
+     summaryTextToCopy += `Files Found: ${fileCount}`; // Add found info
+  }
+
   return (
     <Collapsible
       defaultOpen={true}
@@ -26,15 +35,19 @@ export const ProjectStatusTrajectory: React.FC<ProjectStatusTrajectoryProps> = (
       <CollapsibleTrigger className="w-full text-left hover:bg-accent/30 cursor-pointer">
         <CardHeader className="py-3 px-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              {/* Placeholder icon - replace if a specific one is desired */}
+            <div className="flex items-center space-x-3 flex-1 min-w-0 mr-2"> {/* Ensure title can truncate */}
+              {/* Placeholder icon */}
               <div className="flex-shrink-0 text-lg">📊</div>
-              <CardTitle className="text-base font-medium">
+              <CardTitle className="text-base font-medium truncate">{/* Display title in card */}
                 {displayTitle}
               </CardTitle>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {formattedTime}
+            <div className="flex items-center space-x-2 flex-shrink-0"> {/* Container for button and time */}
+              {/* Use the constructed summary text for copying */}
+              <CopyToClipboardButton textToCopy={summaryTextToCopy} />
+              <div className="text-xs text-muted-foreground">
+                {formattedTime}
+              </div>
             </div>
           </div>
         </CardHeader>

@@ -308,6 +308,7 @@ def ask_expert(question: str) -> str:
             step_data={
                 "display_title": "Expert Response",
                 "response_length": len(content),
+                "response_content": content,
             },
             record_type="tool_execution",
             human_input_id=human_input_id

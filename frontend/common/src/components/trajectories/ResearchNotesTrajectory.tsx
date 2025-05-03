@@ -10,6 +10,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Trajectory } from '../../models/trajectory';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the button
 
 interface ResearchNotesTrajectoryProps {
   trajectory: Trajectory;
@@ -69,12 +70,13 @@ export const ResearchNotesTrajectory: React.FC<ResearchNotesTrajectoryProps> = (
                 {/* Use static title */}
                 <span>Research Notes</span>
               </div>
-              {/* Right side: Timestamp (Chevron removed) */}
+              {/* Right side: Timestamp and Copy Button */}
               <div className="flex items-center space-x-2">
+                {/* Add the CopyToClipboardButton here */}
+                <CopyToClipboardButton textToCopy={"# Research Notes\n\n" + notes} />
                 <div className="text-xs text-muted-foreground">
                   {formattedTime}
                 </div>
-                {/* Chevron icon rendering block removed */}
               </div>
             </div>
           </CardHeader>

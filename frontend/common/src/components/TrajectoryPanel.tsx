@@ -13,7 +13,10 @@ import {
   TaskTrajectory, // <-- Import the new TaskTrajectory component
   FuzzyFindTrajectory, // <-- Import the new FuzzyFindTrajectory component
   TaskCompletedTrajectory, // <-- Import the new TaskCompletedTrajectory component
-  PlanCompletedTrajectory
+  PlanCompletedTrajectory,
+  FileWriteTrajectory, // <-- Import the new FileWriteTrajectory component
+  FileStrReplaceTrajectory, // <-- Import the new FileStrReplaceTrajectory component
+  UserQueryTrajectory
 } from './trajectories';
 import { useTrajectoryStore, useSessionStore } from '../store'; // <-- Import useSessionStore
 import { Trajectory } from '../models/trajectory';
@@ -139,6 +142,12 @@ export const TrajectoryPanel: React.FC<TrajectoryPanelProps> = ({
       case 'read_file':
         component = <ReadFileTrajectory key={trajectory.id} trajectory={trajectory} />;
         break;
+      case 'file_write': // <-- Add case for file_write
+        component = <FileWriteTrajectory key={trajectory.id} trajectory={trajectory} />;
+        break;
+      case 'file_str_replace': // <-- Add case for file_str_replace
+        component = <FileStrReplaceTrajectory key={trajectory.id} trajectory={trajectory} />;
+        break;
       case 'ripgrep_search': // Add case for ripgrep_search
         component = <RipgrepSearchTrajectory key={trajectory.id} trajectory={trajectory} />;
         break;
@@ -153,6 +162,8 @@ export const TrajectoryPanel: React.FC<TrajectoryPanelProps> = ({
         break;
       case 'model_usage': // Hide model usage trajectories
         return null; // Return null directly to skip rendering
+      case 'user_query':
+        return <UserQueryTrajectory trajectory={trajectory} key={trajectory.id} />;
       default:
         // console.warn("Rendering GenericTrajectory for unknown type:", trajectory.recordType, trajectory);
         component = <GenericTrajectory key={trajectory.id} trajectory={trajectory} />;
