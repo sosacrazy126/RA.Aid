@@ -72,7 +72,14 @@ MODEL_COSTS = {
         "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
         "tier_threshold": 200000,
     },
-    "gemini-2.5-pro-preview-03-25": {
+    "google/gemini-2.5-pro-preview-03-25": { # Added google/ prefix
+        "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
+        "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
+        "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
+        "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
+        "tier_threshold": 200000,
+    },
+    "gemini-2.5-pro-preview-03-25": { # Kept original entry without prefix just in case
         "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
         "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
         "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
