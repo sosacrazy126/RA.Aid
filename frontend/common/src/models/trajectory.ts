@@ -10,6 +10,27 @@
 
 import { z } from 'zod';
 
+
+const trajectoryRecordTypes = [
+  'emit_research_notes',
+  'error',
+  'file_str_replace',
+  'file_write',
+  'fuzzy_find_project_files',
+  'info',
+  'memory_operation',
+  'model_usage',
+  'plan_completion',
+  'project_status',
+  'read_file',
+  'ripgrep_search',
+  'stage_transition',
+  'task_completion',
+  'task_display',
+  'thinking',
+  'tool_execution',
+  'user_query',
+] as const;
 /**
  * Schema for the backend trajectory model format received from the API
  *
@@ -34,7 +55,7 @@ export const BackendTrajectorySchema = z.object({
     z.string(),
     z.record(z.any())
   ]).nullable().optional(),
-  record_type: z.string(),
+  record_type: z.enum(trajectoryRecordTypes),
   current_cost: z.number().nullable().optional(),
   input_tokens: z.number().nullable().optional(),
   output_tokens: z.number().nullable().optional(),
@@ -64,7 +85,7 @@ export const TrajectorySchema = z.object({
   toolParameters: z.record(z.any()).nullable().optional(),
   toolResult: z.record(z.any()).nullable().optional(),
   stepData: z.record(z.any()).nullable().optional(),
-  recordType: z.string(),
+  recordType: z.enum(trajectoryRecordTypes),
   currentCost: z.number().nullable().optional(),
   inputTokens: z.number().nullable().optional(),
   outputTokens: z.number().nullable().optional(),
@@ -73,6 +94,7 @@ export const TrajectorySchema = z.object({
   errorType: z.string().nullable().optional(),
   errorDetails: z.record(z.any()).nullable().optional(),
   sessionId: z.number().nullable().optional(), // Changed from z.string()
+  displayTitle: z.string().optional(), // Optional field for display title
 });
 
 /**
@@ -262,7 +284,7 @@ export function safeBackendToTrajectory(data: unknown): Trajectory | null {
       // console.log('Successfully converted to frontend trajectory:', JSON.stringify(result, null, 2));
 
       return result;
-    } catch (validationError) {
+    } catch (validationError: any) {
       // Detailed validation error logging
       console.error('Validation error details:', validationError);
 

@@ -9,6 +9,7 @@ It tests the creation, listing, and retrieval of sessions through the API.
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
+from unittest.mock import patch
 import datetime
 
 from ra_aid.server.api_v1_sessions import router, get_repository
@@ -252,3 +253,23 @@ def test_get_session_trajectories_not_found(client, mock_repo, mock_trajectory_r
     mock_repo.get.assert_called_once_with(999)
     # Ensure the trajectory repository is not called
     mock_trajectory_repo.get_trajectories_by_session.assert_not_called()
+
+
+
+def test_delete_session_success(client, mock_repo, mock_session):
+    mock_repo.get.return_value = mock_session
+
+    with patch("ra_aid.server.api_v1_sessions.is_agent_running", return_value=True), \
+            patch("ra_aid.server.api_v1_sessions.stop_agent", return_value=True):
+        response = client.delete("/v1/session/1")
+        assert response.status_code == 204
+        mock_repo.get.assert_called_once_with(1)
+        mock_repo.update_session_status.assert_called_once_with(1, "halting")
+
+
+def test_delete_session_not_found(client, mock_repo):
+    mock_repo.get.return_value = None
+    response = client.delete("/v1/session/999")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+    mock_repo.get.assert_called_once_with(999)

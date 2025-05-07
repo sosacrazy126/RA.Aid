@@ -127,7 +127,7 @@ class Session(BaseModel):
     machine_info = peewee.TextField(
         null=True, help_text="JSON-encoded machine information"
     )
-    status = peewee.CharField(max_length=20, default='pending', index=True) # e.g., 'pending', 'running', 'completed', 'error'
+    status = peewee.CharField(max_length=20, default='pending', index=True) # e.g., 'pending', 'running', 'completed', 'error', 'halting', 'halted'
 
     class Meta:
         table_name = "session"

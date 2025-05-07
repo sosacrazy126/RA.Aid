@@ -76,7 +76,10 @@ type ClientConfigStore = ClientConfigState & ClientConfigActions;
  * - `port`: Determines the port based on the environment:
  *   - In `vite dev` server, it uses the `VITE_BACKEND_PORT` environment variable, defaulting to `1818` if not set.
  *   - In `vite build` (prebuilt production), it uses the current `window.location.port`, defaulting to `1818` if unavailable.
+ *
+ *   TODO: Do not rely on ts-ignore
  */
+// @ts-ignore
 const backend_port = import.meta.env.DEV ? Number.parseInt(import.meta.env.VITE_BACKEND_PORT || '1818') : Number.parseInt(window?.location?.port || '1818');
 const DEFAULT_CONFIG = ClientConfigSchema.parse({
   host: window?.location?.hostname || 'localhost',
@@ -86,7 +89,7 @@ const DEFAULT_CONFIG = ClientConfigSchema.parse({
 /**
  * Zustand store for client configuration
  */
-export const useClientConfigStore = create<ClientConfigStore>((set, get) => ({
+export const useClientConfigStore = create<ClientConfigStore>((set: any, get: any) => ({
   ...DEFAULT_CONFIG,
   isLoading: false,
   error: null,
@@ -94,14 +97,14 @@ export const useClientConfigStore = create<ClientConfigStore>((set, get) => ({
   /**
    * Update configuration values
    */
-  updateConfig: (config) => {
+  updateConfig: (config: any) => {
     try {
       const validatedConfig = validateClientConfig({
         ...get(),
         ...config
       });
       
-      set((state) => ({
+      set((state: any) => ({
         ...state,
         host: validatedConfig.host,
         port: validatedConfig.port,

@@ -57,6 +57,7 @@ from ra_aid.logging_config import get_logger
 from ra_aid.models_params import (
     DEFAULT_TOKEN_LIMIT,
 )
+from ra_aid.utils.agent_thread_manager import agent_thread_registry, has_received_stop_signal
 from ra_aid.tools.handle_user_defined_test_cmd_execution import execute_test_command
 from ra_aid.database.repositories.human_input_repository import (
     get_human_input_repository,
@@ -127,6 +128,7 @@ def create_agent(
     *,
     checkpointer: Any = None,
     agent_type: str = "default",
+    session_id: Optional[int] = None,
 ):
     """Create a react agent with the given configuration.
 
@@ -135,6 +137,7 @@ def create_agent(
         tools: List of tools to provide to the agent
         checkpointer: Optional memory checkpointer
         agent_type: Type of agent to create (default: "default")
+        session_id: Optional session ID for the agent
 
     Returns:
         The created agent instance
@@ -186,7 +189,7 @@ def create_agent(
         else:
             cpm("Using CIAYN Agent")
             logger.debug("Using CiaynAgent agent instance based on model capabilities.")
-            return CiaynAgent(model, tools, max_tokens=max_input_tokens, config=config)
+            return CiaynAgent(model, tools, max_tokens=max_input_tokens, config=config, session_id=session_id)
 
     except Exception as e:
         # Default to REACT agent if provider/model detection fails
@@ -492,7 +495,7 @@ def _get_agent_state(agent: RAgents, state_config: Dict[str, Any]):
         raise
 
 
-def _run_agent_stream(agent: RAgents, msg_list: list[BaseMessage]):
+def _run_agent_stream(agent: RAgents, msg_list: list[BaseMessage], session_id: Optional[int] = None) -> bool:
     """
     Streams agent output while handling completion and interruption.
 
@@ -516,21 +519,31 @@ def _run_agent_stream(agent: RAgents, msg_list: list[BaseMessage]):
             agent_type = get_agent_type(agent)
             print_agent_output(chunk, agent_type)
 
-            if is_completed() or should_exit():
+            if is_completed() or should_exit(session_id):
                 reset_completion_flags()
                 return True
 
         logger.debug("Stream iteration ended; checking agent state for continuation.")
 
-        state = _get_agent_state(agent, stream_config)
-
-        if state.next:
-            logger.debug(f"Continuing execution with state.next: {state.next}")
-            agent.invoke(None, stream_config)
-            continue
+        # If the agent is CiaynAgent we handle differently
+        if isinstance(agent, CiaynAgent):
+            logger.debug("Agent is CiaynAgent; checking for completion.")
+            if has_received_stop_signal(agent.session_id):
+                logger.debug("Agent received halt signal; stopping not due to error.")
+                break
+            else:
+                logger.debug("Agent not completed; continuing stream.")
+                continue
         else:
-            logger.debug("No continuation indicated in state; exiting stream loop.")
-            break
+            state = _get_agent_state(agent, stream_config)
+
+            if state.next:
+                logger.debug(f"Continuing execution with state.next: {state.next}")
+                agent.invoke(None, stream_config)
+                continue
+            else:
+                logger.debug("No continuation indicated in state; exiting stream loop.")
+                break
 
     return True
 
@@ -539,6 +552,7 @@ def run_agent_with_retry(
     agent: RAgents,
     prompt: str,
     fallback_handler: Optional[FallbackHandler] = None,
+    session_id: Optional[int] = None,
 ) -> Optional[str]:
     """Run an agent with retry logic for API errors."""
     logger.debug("Running agent with prompt length: %d", len(prompt))
@@ -585,8 +599,13 @@ def run_agent_with_retry(
                     logger.error("Agent has crashed: %s", crash_message)
                     return f"Agent has crashed: {crash_message}"
 
+                # Check if the agent has received a stop signal
+                if has_received_stop_signal(session_id):
+                    logger.debug("Agent received halt signal; stopping not due to error.")
+                    break
+
                 try:
-                    _run_agent_stream(agent, msg_list)
+                    _run_agent_stream(agent, msg_list, session_id)
                     if fallback_handler and hasattr(
                         fallback_handler, "reset_fallback_handler"
                     ):
@@ -598,6 +617,11 @@ def run_agent_with_retry(
                     )
                     if should_break:
                         break
+
+                    if should_exit(session_id):
+                        logger.info("Agent run exited due to user request.")
+                        break
+
                     if prompt != original_prompt:
                         continue
 

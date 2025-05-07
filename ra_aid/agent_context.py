@@ -4,10 +4,14 @@ import threading  # Keep for backward compatibility
 import contextvars
 from contextlib import contextmanager
 from typing import Optional
+from ra_aid.logging_config import get_logger
+from ra_aid.utils import agent_thread_manager
+from ra_aid.utils.agent_thread_manager import agent_thread_registry
 
 # Create contextvar to hold the agent context
 agent_context_var = contextvars.ContextVar("agent_context", default=None)
 
+logger = get_logger(__name__)
 
 class AgentContext:
     """Context manager for agent state tracking."""
@@ -219,12 +223,22 @@ def get_completion_message() -> str:
     return context.completion_message if context else ""
 
 
-def should_exit() -> bool:
+def should_exit(session_id: Optional[int] = None) -> bool:
     """Check if the agent should exit execution.
 
     Returns:
         True if the agent should exit, False otherwise
     """
+
+    # Check if the agent has received a stop signal from the client
+    logger.info("SHOULD_EXIT: Checking if agent should exit for session_id: %s", session_id)
+
+    if session_id is not None and agent_thread_manager.has_received_stop_signal(session_id):
+        logger.info("SHOULD_EXIT: Received stop signal from client, exiting agent for session_id: %s", session_id)
+        return True
+    else:
+        logger.info("SHOULD_EXIT: No stop signal received from client, continuing agent for session_id: %s", session_id)
+
     context = get_current_context()
     return context.agent_should_exit if context else False
 

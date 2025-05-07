@@ -5,10 +5,10 @@ __pycache__/
 .env
 /work
 /dist
-/.ra-aid
+/.ra-aid/
 .coverage
 /.venv
-/venv
+/venv*
 /.idea
 /htmlcov
 .envrc
@@ -22,3 +22,11 @@ node_modules/
 /.vscode
 /frontend/common/dist/
 /.ra-prompt
+ra_aid/__main__.build
+ra_aid/__main__.dist
+ra_aid/__main__.onefile-build
+ra_aid/__main__.exe
+.github
+.githooks
+.qodo
+/.DS_Store

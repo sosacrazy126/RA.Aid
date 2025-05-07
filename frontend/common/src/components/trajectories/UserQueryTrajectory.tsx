@@ -5,17 +5,28 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/colla
 import { CopyToClipboardButton } from '../ui/CopyToClipboardButton'; // Import the copy button
 
 // Define the specific type for this trajectory variant
-type UserQueryTrajectoryModel = Extract<Trajectory, { recordType: 'user_query' }>;
-
 interface UserQueryTrajectoryProps {
-  trajectory: UserQueryTrajectoryModel;
+  trajectory: Trajectory;
+}
+
+function isUserQueryTrajectory(
+  t: Trajectory
+): t is Trajectory & { recordType: 'user_query'; stepData?: { query?: string } } {
+  return t.recordType === 'user_query';
 }
 
 /**
+ *
+ *
  * Renders a trajectory step representing the initial user query that started the session.
  */
 export const UserQueryTrajectory: FC<UserQueryTrajectoryProps> = ({ trajectory }) => {
   // Safely access the query from stepData. Use empty string for copy button if query is missing.
+
+  if (!isUserQueryTrajectory(trajectory)) {
+    return null; // or fallback UI
+  }
+
   const query = trajectory.stepData?.query ?? '';
   const displayQuery = query || 'Initial query data not available.'; // Fallback for display
   const formattedTime = new Date(trajectory.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

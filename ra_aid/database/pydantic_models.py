@@ -28,7 +28,7 @@ class SessionModel(BaseModel):
         command_line: Command line arguments used to start the program
         program_version: Version of the program
         machine_info: Dictionary containing machine-specific metadata
-        status: The current lifecycle state of the session (e.g., 'pending', 'running', 'completed', 'error')
+        status: The current lifecycle state of the session (e.g., 'pending', 'running', 'completed', 'error', 'halting', 'halted')
         display_name: Display name for the session (derived from human input or command line)
     """
     id: Optional[int] = None

@@ -8,6 +8,7 @@ from typing import Any, Dict, Generator, List, Optional, Union
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.tools import BaseTool
+from requests import session
 
 from ra_aid.callbacks.default_callback_handler import (
     initialize_callback_handler,
@@ -162,6 +163,7 @@ class CiaynAgent:
         max_history_messages: int = 50,
         max_tokens: Optional[int] = DEFAULT_TOKEN_LIMIT,
         config: Optional[dict] = None,
+        session_id: Optional[int] = None,
     ):
         """Initialize the agent with a model and list of tools.
 
@@ -171,6 +173,7 @@ class CiaynAgent:
             max_history_messages: Maximum number of messages to keep in chat history
             max_tokens: Maximum number of tokens allowed in message history (None for no limit)
             config: Optional configuration dictionary
+            session_id: Optional session ID for tracking
         """
         if config is None:
             config = {}
@@ -179,6 +182,7 @@ class CiaynAgent:
 
         self.model = model
         self.tools = tools
+        self.session_id = session_id
         self.max_history_messages = max_history_messages
         self.max_tokens = max_tokens
         self.chat_history = []
@@ -336,7 +340,7 @@ class CiaynAgent:
         """Execute a tool call and return its result."""
 
         # Check for should_exit before executing tool calls
-        if should_exit():
+        if should_exit(self.session_id):
             logger.debug("Agent should exit flag detected in _execute_tool")
             return "Tool execution aborted - agent should exit flag is set"
 
@@ -368,7 +372,7 @@ class CiaynAgent:
             # If we have multiple valid bundleable calls, execute them in sequence
             if len(tool_calls) > 1:
                 # Check for should_exit before executing bundled tool calls
-                if should_exit():
+                if should_exit(self.session_id):
                     logger.debug(
                         "Agent should exit flag detected before executing bundled tool calls"
                     )
@@ -381,7 +385,7 @@ class CiaynAgent:
 
                 for call in tool_calls:
                     # Check if agent should exit
-                    if should_exit():
+                    if should_exit(self.session_id):
                         logger.debug(
                             "Agent should exit flag detected during bundled tool execution"
                         )
@@ -673,7 +677,7 @@ class CiaynAgent:
                     pass
 
             # Before executing the call
-            if should_exit():
+            if should_exit(self.session_id):
                 logger.debug("Agent should exit flag detected before tool execution")
                 return "Tool execution interrupted: agent_should_exit flag is set."
 
@@ -936,7 +940,7 @@ class CiaynAgent:
 
         while True:
             # Check for should_exit
-            if should_exit():
+            if should_exit(self.session_id):
                 logger.debug("Agent should exit flag detected in stream loop")
                 break
 
@@ -945,10 +949,22 @@ class CiaynAgent:
                 self.chat_history.append(HumanMessage(content=base_prompt))
             full_history = self._trim_chat_history(initial_messages, self.chat_history)
 
+            if should_exit(self.session_id):
+                logger.debug("Agent should exit flag detected before model invocation")
+                break
+
             response = self.model.invoke(
                 [self.sys_message] + full_history, self.stream_config
             )
             # print(f"response={response}")
+
+            if isinstance(response.content, list):
+                if len(response.content) > 1:
+                    response.content = response.content[1]
+                elif len(response.content) == 1:  # If list has only one item
+                    response.content = response.content[0]
+                else:  # If list is empty
+                    response.content = ""  # Set to empty string or handle as an error
 
             # Get settings from config and models_params
             provider = self.config.get("provider", "")
@@ -1083,6 +1099,10 @@ class CiaynAgent:
 
             # Reset empty response counter on successful response
             empty_response_count = 0
+
+            if should_exit(self.session_id):
+                logger.debug("Agent should exit flag detected after model invocation before tool execution")
+                break
 
             try:
                 last_result = self._execute_tool(response)

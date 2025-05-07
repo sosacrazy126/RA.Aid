@@ -75,7 +75,7 @@ def test_default_gemini_provider(clean_env, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     args = parse_arguments(["-m", "test message"])
     assert args.provider == "gemini"
-    assert args.model == "gemini-2.5-pro-preview-03-25" # Default Gemini model
+    assert args.model == "gemini-2.5-pro-preview-05-06" # Default Gemini model
 
 
 def test_respects_user_specified_anthropic_model(clean_env):

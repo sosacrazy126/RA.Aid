@@ -2,13 +2,12 @@
 import React from 'react';
 // It's crucial to import the type correctly. If this specific path doesn't work,
 // check the installed react-markdown version's structure.
-// Using CodeProps from react-markdown directly as the specific subpath might be unstable
-import { CodeProps } from 'react-markdown/lib/ast-to-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 // Ensure this style is appropriate or adjust as needed for the project's theme
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Using VSC Dark Plus theme
 
-export const MarkdownCodeBlock: React.FC<CodeProps> = ({ node, inline, className, children, ...props }) => {
+// Note: this any is a work around for some package conflicts; I recommend we clean this up
+export const MarkdownCodeBlock: React.FC<any> = ({ node, inline, className, children, ...props }) => {
   // 1. Robustly extract the code string
   let codeString = '';
   if (Array.isArray(children)) {

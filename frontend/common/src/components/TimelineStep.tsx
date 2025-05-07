@@ -2,14 +2,16 @@
 import React from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Trajectory } from '../models/trajectory';
-import { TaskCompletedTrajectory } from './trajectories/TaskCompletedTrajectory';
-import { PlanCompletedTrajectory } from './trajectories/PlanCompletedTrajectory';
-// Import other specific trajectory components if needed
-// import { GenericTrajectory } from './trajectories/GenericTrajectory'; 
-// import { ToolExecutionTrajectory } from './trajectories/ToolExecutionTrajectory'; 
 
 interface TimelineStepProps {
   trajectory: Trajectory;
+}
+
+const calculateDurationMs = (trajectory: Trajectory) => {
+  // Calculate from the ISO datetime strings `created` and `updated`
+  const created = new Date(trajectory.created);
+  const updated = new Date(trajectory.updated);
+  return updated.getTime() - created.getTime();
 }
 
 export const TimelineStep: React.FC<TimelineStepProps> = ({ trajectory }) => {
@@ -52,6 +54,7 @@ export const TimelineStep: React.FC<TimelineStepProps> = ({ trajectory }) => {
 
   // Try to get a sensible title
   const getTitle = () => {
+    // @ts-ignore
     return trajectory.stepData?.display_title || trajectory.recordType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
@@ -64,7 +67,7 @@ export const TimelineStep: React.FC<TimelineStepProps> = ({ trajectory }) => {
     return JSON.stringify(trajectory.stepData).substring(0, 100);
   };
 
-  // Get full content for collapsible section
+  // Get full content for the collapsible section
   const getFullContent = () => {
       // Provide more structured content based on type if needed
       // For now, just stringify step_data
@@ -89,9 +92,9 @@ export const TimelineStep: React.FC<TimelineStepProps> = ({ trajectory }) => {
         </div>
         <div className="text-xs text-muted-foreground flex flex-col items-end flex-shrink-0 min-w-[70px] text-right">
           <span className="font-medium">{formatTime(trajectory.created)}</span>
-          {trajectory.durationMs != null && (
+          {calculateDurationMs(trajectory) != null && (
             <span className="mt-1 px-2 py-0.5 bg-secondary/50 rounded-full">
-              {(trajectory.durationMs / 1000).toFixed(1)}s
+              {(calculateDurationMs(trajectory) / 1000).toFixed(1)}s
             </span>
           )}
         </div>
@@ -101,7 +104,7 @@ export const TimelineStep: React.FC<TimelineStepProps> = ({ trajectory }) => {
           <div className="text-sm break-words text-foreground leading-relaxed">
             {getFullContent()}
           </div>
-          {trajectory.durationMs != null && (
+          {calculateDurationMs(trajectory) != null && (
             <div className="mt-4 pt-3 border-t border-border/50">
               <div className="text-xs text-muted-foreground flex items-center">
                 <svg 
@@ -115,7 +118,7 @@ export const TimelineStep: React.FC<TimelineStepProps> = ({ trajectory }) => {
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                Duration: {(trajectory.durationMs / 1000).toFixed(1)} seconds
+                Duration: {(calculateDurationMs(trajectory) / 1000).toFixed(1)} seconds
               </div>
             </div>
           )}

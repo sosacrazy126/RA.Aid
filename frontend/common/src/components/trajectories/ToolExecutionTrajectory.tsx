@@ -77,7 +77,7 @@ export const ToolExecutionTrajectory: React.FC<ToolExecutionTrajectoryProps> = (
 
   // Check if there's actually a result to display (handles null/undefined/empty object)
   // Treat empty strings as valid results for display
-  const hasResultData = toolResult !== null && toolResult !== undefined && (typeof toolResult !== 'object' || Object.keys(toolResult).length > 0 || toolResult === "");
+  const hasResultData = toolResult !== null && toolResult !== undefined && (typeof toolResult !== 'object' || Object.keys(toolResult).length > 0);
 
   // Determine if the copy button should be rendered and what text it should copy
   let rawTextToCopy: string | null = null;

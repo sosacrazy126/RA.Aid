@@ -1,5 +1,5 @@
 """Tests for wipe_project_memory functionality."""
-
+import argparse
 import os
 import tempfile
 from pathlib import Path
@@ -130,32 +130,55 @@ def test_build_status_shows_reset_option():
 
 def test_main_with_wipe_project_memory_flag():
     """Test that the main function properly calls wipe_project_memory when flag is set."""
+    import sys # Need sys for the mock side effect
     from ra_aid.__main__ import main
 
-    # Create a mock args object with wipe_project_memory=True and project_state_dir=None
-    mock_args = MagicMock()
-    mock_args.wipe_project_memory = True
-    mock_args.project_state_dir = None
+    # Create a minimal mock args object using argparse.Namespace
+    mock_args = argparse.Namespace(
+        wipe_project_memory=True,
+        project_state_dir=None,
+        session_id=None,  # Ensure this is None as checked in main
+        version=False,    # Default value checked early
+        list_tools=False, # Default value checked early
+        log_level='INFO', # Needed for setup_logging mock
+        log_file=None,    # Needed for setup_logging mock
+        log_mode='file',  # Add log_mode with default value
+        pretty_logger=False, # Add pretty_logger with default value
+        # Other args not needed before wipe_project_memory check:
+        message=None,
+        msg_file=None,
+        server=False,
+        set_default_provider=None,
+        set_default_model=None
+        # No need for other args like task, model, etc. as they aren't accessed
+        # before the wipe_project_memory check and exit.
+    )
+
     
     # Mock the wipe_project_memory function to raise SystemExit after being called
     def mock_wipe_side_effect(custom_dir=None):
-        raise SystemExit(0)
+        raise SystemExit(0) # Use SystemExit(0) as main does on success
     
     mock_wipe = MagicMock(side_effect=mock_wipe_side_effect)
     
     # Mock all necessary dependencies to prevent actual operations
-    with patch("ra_aid.__main__.wipe_project_memory", mock_wipe), \
-         patch("ra_aid.__main__.parse_arguments", return_value=mock_args), \
-         patch("ra_aid.__main__.setup_logging"), \
-         patch("ra_aid.__main__.get_config_repository"), \
-         patch("ra_aid.__main__.launch_server"), \
-         patch("ra_aid.__main__.DatabaseManager"):
-        
+    # Use parentheses for implicit line continuation
+    with (patch("ra_aid.__main__.wipe_project_memory", mock_wipe),
+          patch("ra_aid.__main__.parse_arguments", return_value=mock_args),
+          patch("ra_aid.__main__.setup_logging"),  # Mock setup_logging itself
+          patch("ra_aid.__main__.get_config_repository"),  # Mock other potential calls before exit
+          patch("ra_aid.__main__.launch_server"),
+          patch("ra_aid.__main__.DatabaseManager"),
+          patch("ra_aid.config.save_default_values")):  # Mock save_default_values
+
+
         # Call main() and catch SystemExit since we're raising it
-        try:
+        # Use pytest.raises for cleaner exit code checking
+        with pytest.raises(SystemExit) as excinfo:
             main()
-        except SystemExit:
-            pass
+
+        # Verify the exit code is 0
+        assert excinfo.value.code == 0
         
         # Verify wipe_project_memory was called with the custom_dir parameter
         mock_wipe.assert_called_once_with(custom_dir=mock_args.project_state_dir)

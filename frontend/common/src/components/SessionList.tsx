@@ -38,6 +38,10 @@ export const SessionList: React.FC<SessionListProps> = ({
         return 'bg-red-500';
       case 'pending':
         return 'bg-yellow-500';
+      case 'halting':
+        return 'bg-orange-200';
+      case 'halted':
+        return 'bg-orange-500';
       default: // unknown or undefined
         return 'bg-gray-500';
     }

@@ -1,3 +1,53 @@
+## [0.30.2] - 2025-05-06
+
+- Handle list response from LLM API
+
+## [0.30.1] - 2025-05-06
+
+- Switch to CIAYN backend for `gemini-2.5-pro-preview-05-06`
+
+## [0.30.0] - 2025-05-06
+
+### Added
+- **Agent Thread Management:** Introduced a new system (`ra_aid/utils/agent_thread_manager.py`) for managing the lifecycle of agent threads, allowing for better control and monitoring of running agents. Includes functions to register, unregister, stop, and check the status of agent threads.
+- **Session Deletion API:** Added a `DELETE /v1/session/{session_id}` endpoint to allow for stopping an active agent session and marking it as "halting" (`ra_aid/server/api_v1_sessions.py`).
+- **Session ID in Agent Creation:** The `create_agent` function and its callers now utilize a `session_id` for improved agent tracking and context management (`ra_aid/agent_utils.py`, `ra_aid/agents/research_agent.py`, `ra_aid/server/api_v1_spawn_agent.py`).
+- **User Query Trajectory in UI:** Added a new `UserQueryTrajectory.tsx` component to display the initial user query in the frontend timeline.
+- **Copy to Clipboard Button in UI:** Implemented a `CopyToClipboardButton.tsx` component and integrated it into various UI parts (e.g., `MarkdownCodeBlock.tsx`, Task and Expert Response trajectories) for easy content copying.
+- **Persistent CLI Configuration:** Users can now set and persist default LLM provider and model via CLI (`--set-default-provider`, `--set-default-model`), stored in `config.json` in the `.ra-aid` directory (`ra_aid/config.py`).
+- **Tests for Agent Thread Manager:** Added new unit tests for the agent thread management module (`tests/ra_aid/utils/test_agent_thread_manager.py`).
+- **Tests for Session Deletion API:** Added new tests for the session deletion API endpoint (`tests/ra_aid/server/test_api_v1_sessions.py`).
+
+### Changed
+- **Default Gemini Model:** Updated the default Google Gemini model to `gemini-2.5-pro-preview-05-06` (from `gemini-2.5-pro-preview-03-25`) in `ra_aid/__main__.py`, `ra_aid/models_params.py`, `docs/docs/quickstart/recommended.md`, and related tests.
+- **Async Tool Wrapper Optimization:** Refined the creation of synchronous wrappers for asynchronous tools to only pass necessary (non-default or required) arguments to the underlying coroutine, improving efficiency (`ra_aid/tool_configs.py`).
+- **Agent Creation Tests:** Updated tests for `create_agent` to reflect the new `session_id` parameter (`tests/ra_aid/test_agent_utils.py`).
+- **Session Statuses:** The `Session` model now includes 'halting' and 'halted' statuses to support the new session termination API.
+- **User Query Storage:** The initial `user_query` is now stored with session and trajectory data.
+- **`DEFAULT_SHOW_COST`:** Changed to `True` by default.
+
+### Fixed
+- **Tool Name Sanitization:** Corrected an issue where tool names with special characters (`.` or `-`) could cause errors during the creation of synchronous wrappers for async tools. These characters are now consistently replaced with `_` (`ra_aid/tool_configs.py`).
+- **Token Limiter Model Name Handling:** Improved `get_model_token_limit` in `ra_aid/anthropic_token_limiter.py` to better handle model name variations for token limit lookups.
+
+## [0.29.0] 2025-04-24
+
+### Changed
+- **Frontend Port Configuration:**
+    - Frontend development server port is now configurable via `VITE_FRONTEND_PORT` environment variable (defaults to 5173) (`frontend/web/vite.config.js`).
+    - Frontend now dynamically determines the backend port using `VITE_BACKEND_PORT` in dev (default 1818) and `window.location.port` in production (`frontend/common/src/store/clientConfigStore.ts`).
+- **Expert Model Temperature Handling:** The backend (`ra_aid/llm.py`) now checks if an expert model supports the `temperature` parameter before passing it, preventing errors with models like newer OpenAI versions that don't. It continues to set `reasoning_effort` to `"high"` where supported.
+- **OpenAI Model Definitions:** Updated definitions for `o4-mini` and `o3` in `ra_aid/models_params.py` to set `supports_temperature=False` and `supports_reasoning_effort=True`.
+
+### Added
+- **Frontend Development Documentation:** Added instructions to `docs/docs/contributing.md` on running the frontend dev server and configuring ports using environment variables.
+- **New OpenAI Model Definitions:** Added definitions for `o4-mini-2025-04-16`, `o3-2025-04-16`, and `o3-mini-2025-01-31` to `ra_aid/models_params.py`.
+
+### Fixed
+- **Custom Tool Result Handling:** Ensured results from custom tools are always wrapped in a Langchain `BaseMessage` (`AIMessage`) to maintain consistency (`ra_aid/agent_backends/ciayn_agent.py`).
+- **Custom Tool Console Output:** Corrected minor formatting issues (escaped newlines) in the console output message when executing custom tools (`ra_aid/agent_backends/ciayn_agent.py`).
+
+
 ## [0.28.1] 2025-04-17
 
 - Update web prebuilt assets
@@ -120,7 +170,6 @@
 ### Internal
 - Added database migration for the new session `status` field (`ra_aid/migrations/015_20250408_140800_add_session_status.py`).
 - Updated `.gitignore`.
-
 
 # Changelog
 

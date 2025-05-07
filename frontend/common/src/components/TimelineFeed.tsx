@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { TimelineStep } from './TimelineStep';
-import { AgentStep } from '../utils/types';
+import {Trajectory} from "../models/trajectory";
 
 interface TimelineFeedProps {
-  steps: AgentStep[];
+  steps: Trajectory[];
   maxHeight?: string;
 }
 
@@ -16,8 +16,12 @@ export const TimelineFeed: React.FC<TimelineFeedProps> = ({
   
   // Sort steps with newest first (desc order)
   const sortedSteps = useMemo(() => {
-    return [...steps].sort((a, b) => {
-      return b.timestamp.getTime() - a.timestamp.getTime();
+    return [...steps].sort((a, b ) => {
+      /**
+       * @var {Trajectory} a
+       * @var {Trajectory} b
+       */
+      return b.created.localeCompare(a.created);
     });
   }, [steps]);
 
@@ -28,8 +32,8 @@ export const TimelineFeed: React.FC<TimelineFeedProps> = ({
         style={{ maxHeight: maxHeight || undefined }}
       >
         {sortedSteps.length > 0 ? (
-          sortedSteps.map((step) => (
-            <TimelineStep key={step.id} step={step} />
+          sortedSteps.map((trajectory) => (
+            <TimelineStep key={trajectory.id} trajectory={trajectory} />
           ))
         ) : (
           <div className="text-center text-muted-foreground py-12 border border-dashed border-border rounded-md">

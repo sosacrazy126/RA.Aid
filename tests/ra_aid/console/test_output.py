@@ -30,7 +30,7 @@ class TestGetCostSubtitle:
         
         # Verify
         assert result is None
-        mock_config_repo.get.assert_called_once_with("show_cost", False)
+        mock_config_repo.get.assert_called_once_with("show_cost", True)
 
     @patch("ra_aid.console.output.get_config_repository")
     @patch("ra_aid.callbacks.default_callback_handler.DefaultCallbackHandler")

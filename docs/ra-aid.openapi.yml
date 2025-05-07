@@ -50,8 +50,9 @@ components:
         \    start_time: When the program session started\n    command_line: Command\
         \ line arguments used to start the program\n    program_version: Version of\
         \ the program\n    machine_info: Dictionary containing machine-specific metadata\n\
-        \    display_name: Display name for the session (derived from human input\
-        \ or command line)"
+        \    status: The current lifecycle state of the session (e.g., 'pending',\
+        \ 'running', 'completed', 'error', 'halting', 'halted')\n    display_name:\
+        \ Display name for the session (derived from human input or command line)"
       properties:
         command_line:
           anyOf:
@@ -86,6 +87,9 @@ components:
           format: date-time
           title: Start Time
           type: string
+        status:
+          title: Status
+          type: string
         updated_at:
           format: date-time
           title: Updated At
@@ -94,6 +98,7 @@ components:
       - created_at
       - updated_at
       - start_time
+      - status
       title: SessionModel
       type: object
     SpawnAgentRequest:
@@ -123,7 +128,7 @@ components:
         session_id:
           description: The ID of the created session
           title: Session Id
-          type: string
+          type: integer
       required:
       - session_id
       title: SpawnAgentResponse
@@ -239,7 +244,9 @@ info:
   contact:
     name: RA.Aid Team
     url: https://github.com/ai-christianson/RA.Aid
-  description: RA.Aid's API provides REST endpoints for managing sessions and agents
+  description: RA.Aid's API provides REST endpoints for managing sessions and agents,
+    and a WebSocket endpoint (/v1/ws) for real-time communication of events like new
+    trajectories. The root endpoint serves the static web UI if available.
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
@@ -250,27 +257,21 @@ openapi: 3.1.0
 paths:
   /:
     get:
-      description: Serve the index.html file with port parameter.
       operationId: get_root__get
       responses:
         '200':
-          content:
-            text/html:
-              schema:
-                type: string
           description: Successful Response
       summary: Get Root
   /config:
     get:
-      description: Return server configuration including host and port.
-      operationId: get_config_config_get
+      operationId: get_config_endpoint_config_get
       responses:
         '200':
           content:
             application/json:
               schema: {}
           description: Successful Response
-      summary: Get Config
+      summary: Get Config Endpoint
   /v1/session:
     get:
       description: Get a paginated list of sessions
@@ -341,6 +342,28 @@ paths:
       tags:
       - sessions
   /v1/session/{session_id}:
+    delete:
+      description: Kill a session by ID
+      operationId: delete_session_v1_session__session_id__delete
+      parameters:
+      - in: path
+        name: session_id
+        required: true
+        schema:
+          title: Session Id
+          type: integer
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Session not found
+        '422':
+          description: Validation error
+        '500':
+          description: Database error
+      summary: Kill session
+      tags:
+      - sessions
     get:
       description: Get a specific session by ID
       operationId: get_session_v1_session__session_id__get

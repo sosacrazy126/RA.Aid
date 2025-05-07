@@ -29,6 +29,62 @@ const setupTheme = () => {
   return isDark;
 };
 
+
+/**
+ * Checks if a session is a haltable state
+ *
+ * @param {AgentSession} session
+ */
+const isHaltable = (session: AgentSession) => {
+  console.log(`[isHaltable] Checking if session ${session.id} is haltable; status = '${session.status}'`);
+  console.log("[isHaltable] returning", session.status === 'running' || session.status === 'pending' || session.status === 'unknown');
+
+  return session.status === 'running' || session.status === 'pending' || session.status === 'unknown';
+}
+
+
+/**
+ * SessionHaltButton component
+ *
+ * Button to halt a running session.
+ *
+ * @param {AgentSession} session
+ * @constructor
+ */
+const SessionHaltButton = ({ session }: { session: AgentSession }) => {
+  const { id, status } = session;
+  const updateSessionStatus = useSessionStore((state) => state.updateSessionStatus);
+
+  const handleHalt = () => {
+    // Get the host and port from the client config store
+    const { host, port } = useClientConfigStore.getState();
+
+    console.log(`[SessionHaltButton] Halting session ${id}`);
+    // Call the API to halt the session
+    fetch(`http://${host}:${port}/v1/session/${id}`, {
+      method: 'DELETE',
+    })
+      .then((response) => {
+        if (response.ok) {
+          console.log(`[SessionHaltButton] Session ${id} halted successfully`);
+          updateSessionStatus(id, 'halted'); // Update status in store
+        } else {
+          console.error(`[SessionHaltButton] Failed to halt session ${id}`);
+        }
+      })
+      .catch((error) => {
+        console.error(`[SessionHaltButton] Error halting session ${id}:`, error);
+      });
+  };
+
+  return (
+    <Button variant="destructive" size="sm" onClick={handleHalt}>
+      {/* Stop Button Icon */}
+      STOP
+    </Button>
+  );
+}
+
 /**
  * DefaultAgentScreen component
  *
@@ -85,7 +141,7 @@ export const DefaultAgentScreen: React.FC = () => {
       const sessionPayload = messageData.payload as { id: number; status: string };
       if (
         sessionPayload.id && typeof sessionPayload.id === 'number' &&
-        sessionPayload.status && ['pending', 'running', 'completed', 'error'].includes(sessionPayload.status)
+        sessionPayload.status && ['pending', 'running', 'completed', 'error', 'halting', 'halted'].includes(sessionPayload.status)
       ) {
          console.log(`[DefaultAgentScreen] Processing session_update for ${sessionPayload.id} with status ${sessionPayload.status}`)
          updateSessionStatus(sessionPayload.id, sessionPayload.status as SessionStatus);
@@ -368,8 +424,9 @@ export const DefaultAgentScreen: React.FC = () => {
       {/* Assign the ref to the scrollable container */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto w-full">
         {/* Session title with minimal spacing */}
-        <div className="px-6 pt-4 pb-2 border-b border-border/30 sticky top-0 bg-background z-10"> {/* Added sticky positioning and background */}
-          <h2 className="text-xl font-medium">{sessionName}</h2> {/* Name comes directly from selectedSession */}
+        <div className="px-6 pt-4 pb-2 border-b border-border/30 sticky top-0 bg-background z-10 flex items-center justify-between">
+          <h2 className="text-xl font-medium">{sessionName}</h2>
+          {(selectedSession && isHaltable(selectedSession)) && <SessionHaltButton session={selectedSession} />}
         </div>
         {/* Trajectory panel with consistent spacing */}
         <TrajectoryPanel

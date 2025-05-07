@@ -14,8 +14,8 @@ import { z } from 'zod';
 // import { AgentSession as UtilAgentSession, AgentStep } from '../utils/types';
 
 // Define the possible status values for a session
-export type SessionStatus = 'pending' | 'running' | 'completed' | 'error' | 'unknown';
-const sessionStatusEnum = z.enum(['pending', 'running', 'completed', 'error', 'unknown']);
+export type SessionStatus = 'pending' | 'running' | 'completed' | 'error' | 'unknown' | 'halting' | 'halted';
+const sessionStatusEnum = z.enum(['pending', 'running', 'completed', 'error', 'unknown', 'halting', 'halted']);
 
 /**
  * Helper function to create a resilient datetime schema that:
@@ -156,7 +156,7 @@ export function backendToAgentSession(backendSession: BackendSession): AgentSess
 
   // Validate and determine status
   let status: SessionStatus = 'unknown'; // Default status
-  if (backendSession.status && ['pending', 'running', 'completed', 'error'].includes(backendSession.status)) {
+  if (backendSession.status && ['pending', 'running', 'completed', 'error', 'halting', 'halted'].includes(backendSession.status)) {
     status = backendSession.status as SessionStatus;
   } else if (backendSession.status) {
      console.warn(`Received unknown session status: ${backendSession.status} for session ${backendSession.id}`);

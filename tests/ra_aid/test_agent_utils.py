@@ -176,6 +176,7 @@ def test_create_agent_openai(mock_model, mock_config_repository):
                 [],
                 max_tokens=models_params["openai"]["gpt-4"]["token_limit"],
                 config={"provider": "openai", "model": "gpt-4"},
+                session_id=None
             )
 
 
@@ -195,6 +196,7 @@ def test_create_agent_no_token_limit(mock_model, mock_config_repository):
                 [],
                 max_tokens=DEFAULT_TOKEN_LIMIT,
                 config={"provider": "unknown", "model": "unknown-model"},
+                session_id=None
             )
 
 
@@ -214,6 +216,7 @@ def test_create_agent_missing_config(mock_model, mock_config_repository):
                 [],
                 max_tokens=DEFAULT_TOKEN_LIMIT,
                 config={"provider": "openai"},
+                session_id=None
             )
 
 
@@ -250,6 +253,7 @@ def test_create_agent_with_checkpointer(mock_model, mock_config_repository):
                 [],
                 max_tokens=models_params["openai"]["gpt-4"]["token_limit"],
                 config={"provider": "openai", "model": "gpt-4"},
+                session_id=None
             )
 
 
@@ -768,6 +772,7 @@ def test_create_agent_openai_token_limiting_disabled(mock_model, mock_config_rep
                     "provider": "openai",
                     "model": "gpt-4"
                 },
+                session_id=None
             )
 
 
@@ -792,4 +797,5 @@ def test_create_agent_default_token_limit(mock_model, mock_config_repository):
                     "provider": "unknown",
                     "model": "unknown-model"
                 },
+                session_id=None
             )

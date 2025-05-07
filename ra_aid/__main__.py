@@ -25,9 +25,18 @@ from ra_aid.agents.research_agent import run_research_agent
 from ra_aid.config import (
     DEFAULT_MAX_TEST_CMD_RETRIES,
     DEFAULT_MODEL,
+    DEFAULT_ANTHROPIC_MODEL,
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_DEEPSEEK_MODEL,
+    DEFAULT_PROVIDER,
     DEFAULT_RECURSION_LIMIT,
     DEFAULT_TEST_CMD_TIMEOUT,
     VALID_PROVIDERS,
+    DEFAULT_EXPERT_ANTHROPIC_MODEL,
+    DEFAULT_EXPERT_GEMINI_MODEL,
+    DEFAULT_EXPERT_OPENAI_MODEL,
+    DEFAULT_EXPERT_DEEPSEEK_MODEL
 )
 from ra_aid.database.repositories.key_fact_repository import (
     KeyFactRepositoryManager,
@@ -251,8 +260,6 @@ def launch_server(host: str, port: int, args):
 
 
 def parse_arguments(args=None):
-    ANTHROPIC_DEFAULT_MODEL = DEFAULT_MODEL
-    OPENAI_DEFAULT_MODEL = "o4-mini"
 
     # Case-insensitive log level argument type
     def log_level_type(value):
@@ -301,7 +308,7 @@ Examples:
         default=(
             "gemini"
             if os.getenv("GEMINI_API_KEY")
-            else ("openai" if os.getenv("OPENAI_API_KEY") else "anthropic")
+            else ("openai" if os.getenv("OPENAI_API_KEY") else DEFAULT_PROVIDER)
         ),
         choices=VALID_PROVIDERS,
         help="The LLM provider to use",
@@ -497,6 +504,17 @@ Examples:
         type=str,
         help="File path of Python module containing custom tools (e.g. ./path/to_custom_tools.py)",
     )
+    parser.add_argument(
+        "--set-default-provider",
+        type=str,
+        choices=VALID_PROVIDERS,
+        help="Set the default provider to use for future runs",
+    )
+    parser.add_argument(
+        "--set-default-model",
+        type=str,
+        help="Set the default model to use for future runs",
+    )
     if args is None:
         args = sys.argv[1:]
     parsed_args = parser.parse_args(args)
@@ -521,12 +539,12 @@ Examples:
     # Handle model defaults and requirements
 
     if parsed_args.provider == "openai":
-        parsed_args.model = parsed_args.model or OPENAI_DEFAULT_MODEL
+        parsed_args.model = parsed_args.model or DEFAULT_OPENAI_MODEL
     elif parsed_args.provider == "anthropic":
         # Use default model for Anthropic only if not specified
-        parsed_args.model = parsed_args.model or ANTHROPIC_DEFAULT_MODEL
+        parsed_args.model = parsed_args.model or DEFAULT_ANTHROPIC_MODEL
     elif parsed_args.provider == "gemini":
-        parsed_args.model = parsed_args.model or "gemini-2.5-pro-preview-03-25"
+        parsed_args.model = parsed_args.model or DEFAULT_GEMINI_MODEL
     elif not parsed_args.model and not parsed_args.research_only:
         # Require model for other providers unless in research mode
         parser.error(
@@ -542,7 +560,7 @@ Examples:
         elif os.environ.get("EXPERT_ANTHROPIC_API_KEY"):
              parsed_args.expert_provider = "anthropic"
              # Use main anthropic model if expert model not specified
-             parsed_args.expert_model = parsed_args.expert_model or ANTHROPIC_DEFAULT_MODEL
+             parsed_args.expert_model = parsed_args.expert_model or DEFAULT_EXPERT_ANTHROPIC_MODEL
         # Add other explicit EXPERT_* checks here if needed in the future...
 
         # NEW: Check if both base Gemini and OpenAI keys are present (and no specific EXPERT_* key was found)
@@ -555,11 +573,11 @@ Examples:
         # Fallback checks for individual base keys (if the combined check didn't match or only one key exists)
         elif os.environ.get("GEMINI_API_KEY"): # Check main Gemini key as fallback
             parsed_args.expert_provider = "gemini"
-            # Use gemini-2.5-pro if not specified, matching main model default
-            parsed_args.expert_model = parsed_args.expert_model or "gemini-2.5-pro-preview-03-25"
+            # Use default Gemini model if not specified
+            parsed_args.expert_model = parsed_args.expert_model or DEFAULT_EXPERT_GEMINI_MODEL
         elif os.environ.get("DEEPSEEK_API_KEY"): # Check main Deepseek key as fallback
             parsed_args.expert_provider = "deepseek"
-            parsed_args.expert_model = "deepseek-reasoner" # Specific default for Deepseek expert
+            parsed_args.expert_model = DEFAULT_EXPERT_DEEPSEEK_MODEL # Specific default for Deepseek expert
         else:
             # Final Fallback: Use main provider settings if none of the above conditions met
             # Special-case OpenAI main provider: we want to use the provider but let later logic choose the best expert model.
@@ -757,6 +775,28 @@ def main():
         base_dir=args.project_state_dir,
     )
     logger.debug("Starting RA.Aid with arguments: %s", args)
+
+    # Check if we need to set default provider or model
+    from ra_aid.config import save_default_values
+
+    if args.set_default_provider or args.set_default_model:
+        values_to_save = {}
+        if args.set_default_provider:
+            values_to_save["provider"] = args.set_default_provider
+            logger.info(f"Setting default provider to: {args.set_default_provider}")
+            print(f"✅ Default provider set to: {args.set_default_provider}")
+
+        if args.set_default_model:
+            values_to_save["model"] = args.set_default_model
+            logger.info(f"Setting default model to: {args.set_default_model}")
+            print(f"✅ Default model set to: {args.set_default_model}")
+
+        # Save the values to the configuration file
+        save_default_values(values_to_save, args.project_state_dir)
+
+        # If only setting defaults and no other operation, exit
+        if not args.message and not args.msg_file and not args.server and not args.wipe_project_memory:
+            return
 
     # Check if we need to wipe project memory before starting
     if args.wipe_project_memory:

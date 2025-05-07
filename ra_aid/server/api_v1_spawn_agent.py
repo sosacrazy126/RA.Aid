@@ -23,6 +23,8 @@ from ra_aid.env_inv_context import EnvInvManager
 from ra_aid.env_inv import EnvDiscovery
 from ra_aid.llm import initialize_llm, get_model_default_temperature
 from ra_aid.server.broadcast_sender import send_broadcast
+from ra_aid.utils.agent_thread_manager import agent_thread_registry, has_received_stop_signal, register_agent, \
+    unregister_agent
 
 # Create logger
 logger = logging.getLogger(__name__)
@@ -255,7 +257,8 @@ def run_agent_thread(
                 research_only=research_only,
                 hil=False,  # No human-in-the-loop for API
                 web_research_enabled=web_research_enabled,
-                thread_id=thread_id_str # run_research_agent might expect string thread_id
+                thread_id=thread_id_str, # run_research_agent might expect string thread_id
+                session_id=session_id,  # Pass integer session_id
             )
             logger.info(f"Agent execution completed successfully for session {session_id}.")
             # --- > Agent Execution Logic <--- END
@@ -267,6 +270,11 @@ def run_agent_thread(
     finally:
         # ---> Update status to final state and broadcast <--- START
         if session_repo_instance:
+
+            # Check if we stop due to halt; if so set final_status to 'halted' if not already 'error'
+            if final_status != 'error' and has_received_stop_signal(session_id):
+                final_status = 'halted'
+
             # Log before final update
             logger.debug(f"Updating session {session_id} final status to '{final_status}'")
             try:
@@ -280,6 +288,9 @@ def run_agent_thread(
                     logger.error(f"Could not retrieve session {session_id} after updating final status.")
             except Exception as final_update_e:
                  logger.error(f"Failed to update/broadcast final status for session {session_id}: {final_update_e}")
+
+            # Unregister the agent thread from the global registry
+            unregister_agent(session_id)
         else:
              logger.error(f"Session repository instance not available in finally block for session {session_id}. Cannot update final status.")
         logger.info(f"Agent thread cleanup finished for session {session_id}.")
@@ -346,6 +357,9 @@ async def spawn_agent(
             "thread_id": str(session_id_int),
         }
 
+        # Create stop event for thread termination
+        stop_event = threading.Event()
+
         # Start the agent thread
         thread = threading.Thread(
             target=run_agent_thread,
@@ -358,9 +372,15 @@ async def spawn_agent(
             kwargs={
                 "temperature": temperature,
                 "thread_config": thread_config,
+                "stop_event": stop_event,
             }
         )
+        thread.name = str(session_id_int)
         thread.daemon = True  # Thread will terminate when main process exits
+
+        # Register the thread in the global registry
+        register_agent(session_id_int, thread, stop_event)
+
         thread.start()
 
         # Return the session ID as int

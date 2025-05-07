@@ -4,84 +4,143 @@
 
 // Import AgentStep from types (if still needed, otherwise remove)
 // Assuming AgentStep might still be relevant for sample data structure
-import { AgentStep } from './types';
+import {Trajectory} from "../models/trajectory";
+
 // Import AgentSession from the correct location
 import { AgentSession } from '../models/session';
 
 /**
  * Returns an array of sample agent steps
  */
-export function getSampleAgentSteps(): AgentStep[] {
+export function getSampleAgentSteps(): Trajectory[] {
   return [
     {
-      id: "step-1",
-      timestamp: new Date(Date.now() - 30 * 60000), // 30 minutes ago
-      status: 'completed',
-      type: 'planning',
-      title: 'Initial Planning',
-      content: 'I need to analyze the codebase structure to understand the existing components and their relationships.',
-      duration: 5200
+      id: 1,
+      created: (new Date(Date.now() - 30 * 60000)).toISOString(), // 30 minutes ago
+      updated: (new Date(Date.now() - 25 * 60000)).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'project_status',
+      sessionId: 1,
     },
     {
-      id: "step-2",
-      timestamp: new Date(Date.now() - 25 * 60000), // 25 minutes ago
-      status: 'completed',
-      type: 'tool-execution',
-      title: 'List Directory Structure',
-      content: 'Executing: list_directory_tree(path="src/", max_depth=2)\n\n📁 /project/src/\n├── 📁 components/\n│   ├── 📁 ui/\n│   └── App.tsx\n├── 📁 utils/\n└── index.tsx',
-      duration: 1800
+      id: 2,
+      created: (new Date(Date.now() - 25 * 60000)).toISOString(), // 25 minutes ago
+      updated: (new Date(Date.now() - 20 * 60000)).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'project_status',
+      sessionId: 1,
     },
     {
-      id: "step-3",
-      timestamp: new Date(Date.now() - 20 * 60000), // 20 minutes ago
-      status: 'completed',
-      type: 'thinking',
-      title: 'Component Analysis',
-      content: 'Based on the directory structure, I see that the UI components are organized in a dedicated folder. I should examine the existing component patterns before implementing new ones.',
-      duration: 3500
+      id: 3,
+      created: (new Date(Date.now() - 20 * 60000)).toISOString(),// 20 minutes ago
+      updated: (new Date(Date.now() - 15 * 60000)).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'stage_transition',
+      sessionId: 1,
     },
     {
-      id: "step-4",
-      timestamp: new Date(Date.now() - 15 * 60000), // 15 minutes ago
-      status: 'completed',
-      type: 'tool-execution',
-      title: 'Read Component Code',
-      content: 'Executing: read_file_tool(filepath="src/components/ui/Button.tsx")\n\n```tsx\nimport { cn } from "../../utils";\n\nexport interface ButtonProps {\n  // Component props...\n}\n\nexport function Button({ children, ...props }: ButtonProps) {\n  // Component implementation...\n}\n```',
-      duration: 2100
+      id: 4,
+      created: (new Date(Date.now() - 15 * 60000)).toISOString(),// 15 minutes ago
+      updated: (new Date(Date.now() - 10 * 60000)).toISOString(),
+      toolName: '',
+      isError: true,
+      recordType: 'error',
+      errorMessage: 'Encountered ResourceExhausted: 429 Gemini 2.5 Pro Preview doesn\'t have a free quota tier. Please use Gemini 2.5 Pro Experimental (models/gemini-2.5-pro-exp-03-25) instead. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {\n' +
+        '  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_input_token_count"\n' +
+        '  quota_id: "GenerateContentInputTokensPerModelPerDay-FreeTier"\n' +
+        '  quota_dimensions {\n' +
+        '    key: "model"\n' +
+        '    value: "gemini-2.5-pro-exp"\n' +
+        '  }\n' +
+        '  quota_dimensions {\n' +
+        '    key: "location"\n' +
+        '    value: "global"\n' +
+        '  }\n' +
+        '}\n' +
+        'violations {\n' +
+        '  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_input_token_count"\n' +
+        '  quota_id: "GenerateContentInputTokensPerModelPerMinute-FreeTier"\n' +
+        '  quota_dimensions {\n' +
+        '    key: "model"\n' +
+        '    value: "gemini-2.5-pro-exp"\n' +
+        '  }\n' +
+        '  quota_dimensions {\n' +
+        '    key: "location"\n' +
+        '    value: "global"\n' +
+        '  }\n' +
+        '}\n' +
+        'violations {\n' +
+        '  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"\n' +
+        '  quota_id: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"\n' +
+        '  quota_dimensions {\n' +
+        '    key: "model"\n' +
+        '    value: "gemini-2.5-pro-exp"\n' +
+        '  }\n' +
+        '  quota_dimensions {\n' +
+        '    key: "location"\n' +
+        '    value: "global"\n' +
+        '  }\n' +
+        '}\n' +
+        'violations {\n' +
+        '  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"\n' +
+        '  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"\n' +
+        '  quota_dimensions {\n' +
+        '    key: "model"\n' +
+        '    value: "gemini-2.5-pro-exp"\n' +
+        '  }\n' +
+        '  quota_dimensions {\n' +
+        '    key: "location"\n' +
+        '    value: "global"\n' +
+        '  }\n' +
+        '}\n' +
+        ', links {\n' +
+        '  description: "Learn more about Gemini API quotas"\n' +
+        '  url: "https://ai.google.dev/gemini-api/docs/rate-limits"\n' +
+        '}\n' +
+        ', retry_delay {\n' +
+        '  seconds: 41\n' +
+        '}\n' +
+        ']. Retrying in 1s... (Attempt 1/20)',
+      sessionId: 2,
     },
     {
-      id: "step-5",
-      timestamp: new Date(Date.now() - 10 * 60000), // 10 minutes ago
-      status: 'completed',
-      type: 'implementation',
-      title: 'Creating NavBar Component',
-      content: 'I\'m creating a NavBar component following the design system patterns:\n\n```tsx\nimport { cn } from "../../utils";\n\nexport interface NavBarProps {\n  // New component props...\n}\n\nexport function NavBar({ ...props }: NavBarProps) {\n  // New component implementation...\n}\n```',
-      duration: 6800
+      id: 5,
+      created: (new Date(Date.now() - 10 * 60000)).toISOString(), // 10 minutes ago
+      updated: (new Date(Date.now() - 5 * 60000)).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'project_status',
+      sessionId: 3,
     },
     {
-      id: "step-6",
-      timestamp: new Date(Date.now() - 5 * 60000), // 5 minutes ago
-      status: 'in-progress',
-      type: 'implementation',
-      title: 'Styling Timeline Component',
-      content: 'Currently working on styling the Timeline component to match the design system:\n\n```tsx\n// Work in progress...\nexport function Timeline({ steps, ...props }: TimelineProps) {\n  // Current implementation...\n}\n```',
+      id: 6,
+      created: (new Date(Date.now() - 5 * 60000)).toISOString(), // 5 minutes ago
+      updated: (new Date(Date.now() - 2 * 60000)).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'stage_transition',
+      sessionId: 3,
     },
     {
-      id: "step-7",
-      timestamp: new Date(Date.now() - 2 * 60000), // 2 minutes ago
-      status: 'error',
-      type: 'tool-execution',
-      title: 'Running Tests',
-      content: 'Error executing: run_shell_command(command="npm test")\n\nTest failed: TypeError: Cannot read property \'steps\' of undefined',
-      duration: 3200
+      id: 7,
+      created: (new Date(Date.now() - 2 * 60000)).toISOString(), // 2 minutes ago
+      updated: (new Date(Date.now() - 1 * 60000)).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'stage_transition',
+      sessionId: 3,
     },
     {
-      id: "step-8",
-      timestamp: new Date(), // Now
-      status: 'pending',
-      type: 'planning',
-      title: 'Next Steps',
-      content: 'Need to plan the implementation of the SessionDrawer component...',
+      id: 8,
+      created: (new Date()).toISOString(), // Now
+      updated: (new Date()).toISOString(),
+      toolName: '',
+      isError: false,
+      recordType: 'project_status',
+      sessionId: 3,
     }
   ];
 }

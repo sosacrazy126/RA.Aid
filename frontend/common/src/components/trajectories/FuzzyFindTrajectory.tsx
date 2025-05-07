@@ -26,7 +26,7 @@ interface FuzzyFindStepData {
 
 interface FuzzyFindTrajectoryProps {
   // Trajectory might have toolResult, even if stepData is typed
-  trajectory: Trajectory<FuzzyFindStepData>;
+  trajectory: Trajectory;
 }
 
 export const FuzzyFindTrajectory: React.FC<FuzzyFindTrajectoryProps> = ({ trajectory }) => {
@@ -105,10 +105,10 @@ export const FuzzyFindTrajectory: React.FC<FuzzyFindTrajectoryProps> = ({ trajec
                      <h4 className="font-semibold mb-2 text-sm">Top Matches:</h4>
                      <ScrollArea className="h-40 border rounded-md p-2 bg-gray-50 dark:bg-gray-900">
                        <ul>
-                         {stepData.matches.map(([path, score], index) => (
+                         {stepData.matches.map((stepData: { path: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | React.ReactFragment | React.ReactPortal | null | undefined; score: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | React.ReactFragment | React.ReactPortal | null | undefined; }, index: React.Key | null | undefined) => (
                            <li key={index} className="flex justify-between items-center mb-1 text-xs">
-                             <span className="font-mono break-all">{path}</span>
-                             <Badge variant="secondary">{score}</Badge>
+                             <span className="font-mono break-all">{stepData.path}</span>
+                             <Badge variant="secondary">{stepData.score}</Badge>
                            </li>
                          ))}
                        </ul>
