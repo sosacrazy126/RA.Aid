@@ -6,7 +6,12 @@ from textual import events
 
 from ra_aid.config import load_config
 from ra_aid.logging_config import get_logger
-from ra_aid.database import connect_db
+from ra_aid.database.connection import get_connection
+
+from ra_aid.console.common import console
+from ra_aid.console.formatting import print_stage_header, print_error
+from ra_aid.console.output import Panel, Markdown
+from ra_aid.console.cowboy_messages import COWBOY_MESSAGES, get_cowboy_message
 
 class RaAidTUI(App):
     """RA.Aid Terminal User Interface"""
@@ -55,10 +60,13 @@ class RaAidTUI(App):
 
     def __init__(self):
         super().__init__()
-        # Initialize RA.Aid core components
+        # Use existing RA.Aid config, logger, and database connection management
         self.config = load_config()
         self.logger = get_logger()
-        self.db = connect_db(".ra-aid/pk.db")
+        self.db = get_connection(".ra-aid/pk.db")
+
+        # Use the shared console instance for all output
+        self.ra_console = console
 
         # Mode management
         self.current_mode = "chat"
@@ -73,6 +81,8 @@ class RaAidTUI(App):
         self.aider_enabled = self.config.get('use_aider', True)
         self.cowboy_mode = self.config.get('cowboy_mode', False)
         self.web_research = self.config.get('web_research', True)
+
+        self.logger.info("Initializing RA.Aid TUI")
 
     def compose(self):
         """Create and yield widgets for the app."""
@@ -168,19 +178,24 @@ class RaAidTUI(App):
             await self._handle_parallel_input(input_text)
 
     async def _handle_chat_input(self, input_text: str):
-        """Handle chat mode input."""
+        """Handle chat mode input using RA.Aid formatting."""
         output = self.query_one("#chat-output")
-        output.write(f"\n> {input_text}")
 
-        # Show processing indicator
-        output.write("🤔 Thinking...")
+        # Use RA.Aid console panel and markdown formatting for user input
+        output.write(Panel(Markdown(f"> {input_text}")))
+        print_stage_header("Processing")
 
         try:
-            # Process through RA.Aid's three-stage architecture
             result = await self._process_ra_aid_task(input_text)
-            output.write(f"✅ {result}")
+            output.write(Panel(Markdown(result)))
+        except KeyboardInterrupt:
+            from ra_aid.console.formatting import print_interrupt
+            print_interrupt("Interrupted by user.")
+            output.write(Panel(Markdown("⛔ Interrupted")))
         except Exception as e:
-            output.write(f"❌ Error: {str(e)}")
+            print_error(str(e))
+            self.logger.error(f"Task error: {str(e)}")
+            output.write(Panel(Markdown(f"❌ Error: {str(e)}")))
 
     async def _handle_parallel_input(self, input_text: str):
         """Handle parallel mode input."""
@@ -194,10 +209,19 @@ class RaAidTUI(App):
             await self._spawn_agent("general", input_text)
 
     async def _process_ra_aid_task(self, task: str):
-        """Process task through RA.Aid's architecture."""
-        # This would integrate with existing RA.Aid components
-        # For now, placeholder
-        return f"Processed: {task}"
+        """Process task through RA.Aid's architecture with error handling."""
+        try:
+            # This would integrate with existing RA.Aid components
+            # For now, placeholder
+            return f"Processed: {task}"
+        except KeyboardInterrupt:
+            from ra_aid.console.formatting import print_interrupt
+            print_interrupt("Interrupted by user.")
+            return None
+        except Exception as e:
+            print_error(f"Task processing failed: {str(e)}")
+            self.logger.error(f"Task error: {str(e)}")
+            return None
 
     async def _spawn_agent(self, agent_type: str, task: str):
         """Spawn a new agent for parallel processing."""
@@ -289,11 +313,16 @@ class RaAidTUI(App):
         self.notify(f"Aider: {'ENABLED' if self.aider_enabled else 'DISABLED'}")
 
     async def action_toggle_cowboy(self):
-        """Toggle cowboy mode."""
+        """Toggle cowboy mode with authentic messages."""
+        import random
         self.cowboy_mode = not self.cowboy_mode
         self.config['cowboy_mode'] = self.cowboy_mode
+
         self.query_one("#mode-indicator").update(self._get_mode_indicator())
-        self.notify(f"Cowboy mode: {'ON' if self.cowboy_mode else 'OFF'}")
+        if self.cowboy_mode:
+            self.notify(get_cowboy_message())
+        else:
+            self.notify("Cowboy mode disabled")
 
     async def action_toggle_web(self):
         """Toggle web research."""
@@ -303,9 +332,21 @@ class RaAidTUI(App):
         self.notify(f"Web research: {'ENABLED' if self.web_research else 'DISABLED'}")
 
     def load_session(self):
-        """Load previous session from database."""
-        # Integrate with RA.Aid's existing session management
-        pass
+        """Load previous session using existing database schema."""
+        # Use context manager for DB for correct cleanup
+        with self.db as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    SELECT * FROM sessions 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """)
+                session = cursor.fetchone()
+                if session:
+                    self.current_session = session
+            except Exception as e:
+                self.logger.warning(f"Could not load session: {e}")
 
     async def action_restart_session(self):
         """Restart the current session."""
