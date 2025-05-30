@@ -1,5 +1,6 @@
 import threading
 import time
+import sys
 from langchain.chat_models.base import BaseChatModel
 import litellm
 from contextlib import contextmanager
@@ -9,6 +10,7 @@ from decimal import Decimal, getcontext
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
+from rich.prompt import Confirm
 
 from ra_aid.model_detection import (
     get_model_name_from_chat_model,
@@ -114,6 +116,11 @@ MODEL_COSTS = {
         "input": Decimal("0.0001"),  # $0.1/M input tokens
         "output": Decimal("0.0003"),  # $0.3/M output tokens
     },
+    "anthropic/claude-sonnet-4": { # Created May 22, 2025
+        "input": Decimal("0.000003"),  # $3/M input tokens
+        "output": Decimal("0.000015"), # $15/M output tokens
+        # Image costs ($4.80/K input imgs) are not currently supported by this structure
+    },
 }
 
 
@@ -141,6 +148,7 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
 
     trajectory_repo = None
     session_repo = None
+    config_repo = None
 
     input_cost_per_token: Decimal = Decimal("0.0")  # Default/non-tiered input cost
     output_cost_per_token: Decimal = Decimal("0.0") # Default/non-tiered output cost
@@ -162,6 +170,9 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
 
             if not hasattr(self, "session_repo") or self.session_repo is None:
                 self.session_repo = get_session_repository()
+
+            if not hasattr(self, "config_repo") or self.config_repo is None:
+                self.config_repo = get_config_repository()
 
             if self.session_repo:
                 current_session = self.session_repo.get_current_session_record()
@@ -367,6 +378,28 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
             self.session_totals["output_tokens"] += completion_tokens
             self.session_totals["duration"] += duration
 
+            # Check limits after updating session totals
+            limit_info = self._check_limits()
+            if limit_info:
+                limit_type, current_val, limit_val, exit_at_limit = limit_info
+                self._record_limit_reached(limit_type, current_val, limit_val, exit_at_limit)
+                should_prompt = not exit_at_limit
+            else:
+                should_prompt = False
+
+        # Handle limit exceeded outside of lock
+        if limit_info:
+            if should_prompt:
+                message = self._format_limit_message(limit_type, current_val, limit_val)
+                if not Confirm.ask(message, default=False):
+                    sys.exit(0)
+            else:
+                # Auto-exit mode
+                print(f"Exiting due to {limit_type} limit reached: {current_val} >= {limit_val}")
+                sys.exit(0)
+
+        # Continue with normal callback handling
+        with self._lock:
             self._handle_callback_update(
                 total_tokens, prompt_tokens, completion_tokens, duration
             )
@@ -481,6 +514,64 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
                 current_session = self.session_repo.get_current_session_record()
                 if current_session:
                     self.session_totals["session_id"] = current_session.get_id()
+
+    def _check_limits(self) -> Optional[tuple]:
+        """Check if cost or token limits have been exceeded.
+        
+        Returns:
+            tuple: (limit_type, current_value, limit_value, exit_at_limit) if limit exceeded, None otherwise
+        """
+        try:
+            if not self.config_repo:
+                return None
+                
+            max_cost = self.config_repo.get("max_cost")
+            max_tokens = self.config_repo.get("max_tokens")
+            exit_at_limit = self.config_repo.get("exit_at_limit", False)
+            
+            current_cost = self.session_totals["cost"]
+            current_tokens = self.session_totals["tokens"]
+            
+            # Check cost limit (convert to float for comparison)
+            if max_cost is not None and max_cost > 0 and float(current_cost) >= max_cost:
+                return ("cost", float(current_cost), max_cost, exit_at_limit)
+                
+            # Check token limit
+            if max_tokens is not None and max_tokens > 0 and current_tokens >= max_tokens:
+                return ("tokens", current_tokens, max_tokens, exit_at_limit)
+                
+            return None
+        except Exception as e:
+            logger.error(f"Error checking limits: {e}", exc_info=True)
+            return None
+    
+    def _record_limit_reached(self, limit_type: str, current_value: Union[int, float], 
+                             limit_value: Union[int, float], exit_at_limit: bool) -> None:
+        """Record a limit reached event in the trajectory."""
+        try:
+            if not self.trajectory_repo or not self.session_totals["session_id"]:
+                return
+                
+            self.trajectory_repo.create(
+                record_type="limit_reached",
+                session_id=self.session_totals["session_id"],
+                step_data={
+                    "limit_type": limit_type,
+                    "current_value": current_value,
+                    "limit_value": limit_value,
+                    "exit_at_limit": exit_at_limit
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to record limit reached event: {e}", exc_info=True)
+    
+    def _format_limit_message(self, limit_type: str, current_value: Union[int, float], 
+                             limit_value: Union[int, float]) -> str:
+        """Format a user-friendly message for limit exceeded scenarios."""
+        if limit_type == "cost":
+            return f"Cost limit exceeded: ${current_value:.6f} >= ${limit_value:.6f}. Continue anyway?"
+        else:
+            return f"Token limit exceeded: {current_value:,} >= {limit_value:,}. Continue anyway?"
 
     def get_stats(self) -> Dict[str, Union[int, float]]:
         try:
