@@ -88,6 +88,20 @@ MODEL_COSTS = {
         "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
         "tier_threshold": 200000,
     },
+    "google/gemini-2.5-pro-preview-05-06": { # Created May 7, 2025
+        "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
+        "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
+        "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
+        "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
+        "tier_threshold": 200000,
+    },
+    "gemini-2.5-pro-preview-05-06": { # Created May 7, 2025
+        "input_under_200k": Decimal("0.00000125"),  # $1.25/M tokens
+        "input_over_200k": Decimal("0.00000250"),   # $2.50/M tokens
+        "output_under_200k": Decimal("0.00001000"), # $10.00/M tokens
+        "output_over_200k": Decimal("0.00001500"),  # $15.00/M tokens
+        "tier_threshold": 200000,
+    },
     "deepseek/deepseek-chat-v3-0324": {
         "input": Decimal("0.00000027"),
         "output": Decimal("0.0000011"),
@@ -234,6 +248,30 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
             self.output_cost_per_token = Decimal("0")
             self.tiered_costs = None
 
+    def _get_tiered_cost_rates(self, prompt_tokens: int) -> tuple[Decimal, Decimal]:
+        """
+        Calculates the applicable input and output cost per token based on
+        the current call's prompt tokens and the model's tiered pricing structure.
+
+        Args:
+            prompt_tokens: The number of prompt tokens in the current LLM call.
+
+        Returns:
+            A tuple containing (input_cost_per_token, output_cost_per_token).
+        """
+        current_input_cost_per_token = self.input_cost_per_token
+        current_output_cost_per_token = self.output_cost_per_token
+
+        if self.tiered_costs and isinstance(self.tiered_costs, dict):
+            threshold = self.tiered_costs.get("tier_threshold", 0)
+            if prompt_tokens > threshold:
+                current_input_cost_per_token = self.tiered_costs.get("input_over_200k", current_input_cost_per_token)
+                current_output_cost_per_token = self.tiered_costs.get("output_over_200k", current_output_cost_per_token)
+            else:
+                current_input_cost_per_token = self.tiered_costs.get("input_under_200k", current_input_cost_per_token)
+                current_output_cost_per_token = self.tiered_costs.get("output_under_200k", current_output_cost_per_token)
+
+        return current_input_cost_per_token, current_output_cost_per_token
 
     def __repr__(self) -> str:
         return (
@@ -351,17 +389,7 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
             self.total_tokens = total_tokens
 
             # Determine cost per token for this specific call, considering tiers
-            current_input_cost_per_token = self.input_cost_per_token
-            current_output_cost_per_token = self.output_cost_per_token
-
-            if self.tiered_costs:
-                threshold = self.tiered_costs.get("tier_threshold", 0)
-                if prompt_tokens > threshold:
-                    current_input_cost_per_token = self.tiered_costs.get("input_over_200k", current_input_cost_per_token)
-                    current_output_cost_per_token = self.tiered_costs.get("output_over_200k", current_output_cost_per_token)
-                else:
-                    current_input_cost_per_token = self.tiered_costs.get("input_under_200k", current_input_cost_per_token)
-                    current_output_cost_per_token = self.tiered_costs.get("output_under_200k", current_output_cost_per_token)
+            current_input_cost_per_token, current_output_cost_per_token = self._get_tiered_cost_rates(prompt_tokens)
 
             # Calculate costs using Decimal arithmetic with potentially tiered rates
             input_cost = Decimal(prompt_tokens) * current_input_cost_per_token
@@ -436,16 +464,7 @@ class DefaultCallbackHandler(BaseCallbackHandler, metaclass=Singleton):
                 return
 
             # Recalculate cost for the trajectory record using potentially tiered rates for this call
-            current_input_cost_per_token = self.input_cost_per_token
-            current_output_cost_per_token = self.output_cost_per_token
-            if self.tiered_costs:
-                threshold = self.tiered_costs.get("tier_threshold", 0)
-                if prompt_tokens > threshold:
-                    current_input_cost_per_token = self.tiered_costs.get("input_over_200k", current_input_cost_per_token)
-                    current_output_cost_per_token = self.tiered_costs.get("output_over_200k", current_output_cost_per_token)
-                else:
-                    current_input_cost_per_token = self.tiered_costs.get("input_under_200k", current_input_cost_per_token)
-                    current_output_cost_per_token = self.tiered_costs.get("output_under_200k", current_output_cost_per_token)
+            current_input_cost_per_token, current_output_cost_per_token = self._get_tiered_cost_rates(prompt_tokens)
 
             input_cost = Decimal(prompt_tokens) * current_input_cost_per_token
             output_cost = Decimal(completion_tokens) * current_output_cost_per_token
