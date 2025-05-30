@@ -1,5 +1,6 @@
 """Unit tests for cost and token limit CLI arguments in __main__.py."""
 
+import contextlib
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -138,95 +139,99 @@ def mock_config_repository():
 def test_limit_config_storage(mock_config_repository):
     """Test that limit arguments are stored in config repository."""
     import sys
-    from unittest.mock import patch, MagicMock
     from ra_aid.__main__ import main
     
-    # Mock repository access functions
-    with patch('ra_aid.__main__.get_config_repository', return_value=mock_config_repository):
-        with patch('ra_aid.__main__.get_trajectory_repository'):
-            with patch('ra_aid.__main__.get_human_input_repository'):
-                with patch('ra_aid.__main__.get_key_fact_repository'):
-                    with patch('ra_aid.__main__.get_key_snippet_repository'):
-                        with patch('ra_aid.__main__.get_research_note_repository'):
-                            # Mock other dependencies
-                            with patch('ra_aid.__main__.check_dependencies'):
-                                with patch('ra_aid.__main__.validate_environment', return_value=(True, [], True, [])):
-                                    with patch('ra_aid.__main__.run_research_agent'):
-                                        with patch('ra_aid.__main__.DatabaseManager'):
-                                            with patch('ra_aid.__main__.SessionRepositoryManager') as mock_session_manager:
-                                                with patch('ra_aid.__main__.KeyFactRepositoryManager'):
-                                                    with patch('ra_aid.__main__.KeySnippetRepositoryManager'):
-                                                        with patch('ra_aid.__main__.HumanInputRepositoryManager'):
-                                                            with patch('ra_aid.__main__.ResearchNoteRepositoryManager'):
-                                                                with patch('ra_aid.__main__.RelatedFilesRepositoryManager'):
-                                                                    with patch('ra_aid.__main__.TrajectoryRepositoryManager'):
-                                                                        with patch('ra_aid.__main__.WorkLogRepositoryManager'):
-                                                                            with patch('ra_aid.__main__.ConfigRepositoryManager'):
-                                                                                with patch('ra_aid.__main__.EnvInvManager'):
-                                                                                    with patch('ra_aid.__main__.ensure_migrations_applied', return_value=True):
-                                                                                        with patch('ra_aid.__main__.EnvDiscovery'):
-                                                                                            # Mock session manager to return a valid session ID
-                                                                                            mock_session = MagicMock()
-                                                                                            mock_session.get_current_session_id.return_value = 1
-                                                                                            mock_session.create_session.return_value = None
-                                                                                            mock_session_manager.__enter__ = MagicMock(return_value=mock_session)
-                                                                                            mock_session_manager.__exit__ = MagicMock(return_value=None)
-                                                                                            
-                                                                                            with patch.object(sys, "argv", [
-                                                                                                "ra-aid", "-m", "test",
-                                                                                                "--max-cost", "5.0",
-                                                                                                "--max-tokens", "10000", 
-                                                                                                "--exit-at-limit"
-                                                                                            ]):
-                                                                                                main()
-                                                                                                
-                                                                                                # Verify config values were set
-                                                                                                mock_config_repository.set.assert_any_call("max_cost", 5.0)
-                                                                                                mock_config_repository.set.assert_any_call("max_tokens", 10000)
-                                                                                                mock_config_repository.set.assert_any_call("exit_at_limit", True)
+    with contextlib.ExitStack() as stack:
+        # Mock session manager to return a valid session ID
+        mock_session = MagicMock()
+        mock_session.get_current_session_id.return_value = 1
+        mock_session.create_session.return_value = None
+        
+        # Mock context manager __enter__ methods to return mock repositories
+        stack.enter_context(patch('ra_aid.database.connection.DatabaseManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.session_repository.SessionRepositoryManager.__enter__', return_value=mock_session))
+        stack.enter_context(patch('ra_aid.database.repositories.key_fact_repository.KeyFactRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.key_snippet_repository.KeySnippetRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.human_input_repository.HumanInputRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.research_note_repository.ResearchNoteRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.related_files_repository.RelatedFilesRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.trajectory_repository.TrajectoryRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.work_log_repository.WorkLogRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.config_repository.ConfigRepositoryManager.__enter__', return_value=mock_config_repository))
+        stack.enter_context(patch('ra_aid.env_inv_context.EnvInvManager.__enter__', return_value=MagicMock()))
+        
+        # Mock the repository getter functions that access contextvars
+        stack.enter_context(patch('ra_aid.__main__.get_trajectory_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_human_input_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_key_fact_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_key_snippet_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_research_note_repository', return_value=MagicMock()))
+        
+        # Mock other dependencies
+        stack.enter_context(patch('ra_aid.__main__.check_dependencies'))
+        stack.enter_context(patch('ra_aid.__main__.validate_environment', return_value=(True, [], True, [])))
+        stack.enter_context(patch('ra_aid.__main__.run_research_agent'))
+        stack.enter_context(patch('ra_aid.__main__.ensure_migrations_applied', return_value=True))
+        stack.enter_context(patch('ra_aid.__main__.EnvDiscovery'))
+        
+        stack.enter_context(patch.object(sys, "argv", [
+            "ra-aid", "-m", "test",
+            "--max-cost", "5.0",
+            "--max-tokens", "10000", 
+            "--exit-at-limit"
+        ]))
+        
+        main()
+        
+        # Verify config values were set
+        mock_config_repository.set.assert_any_call("max_cost", 5.0)
+        mock_config_repository.set.assert_any_call("max_tokens", 10000)
+        mock_config_repository.set.assert_any_call("exit_at_limit", True)
 
 
 def test_limit_config_storage_none_values(mock_config_repository):
     """Test that None values are stored when limits not specified."""
     import sys
-    from unittest.mock import patch, MagicMock
     from ra_aid.__main__ import main
     
-    # Mock repository access functions
-    with patch('ra_aid.__main__.get_config_repository', return_value=mock_config_repository):
-        with patch('ra_aid.__main__.get_trajectory_repository'):
-            with patch('ra_aid.__main__.get_human_input_repository'):
-                with patch('ra_aid.__main__.get_key_fact_repository'):
-                    with patch('ra_aid.__main__.get_key_snippet_repository'):
-                        with patch('ra_aid.__main__.get_research_note_repository'):
-                            # Mock other dependencies
-                            with patch('ra_aid.__main__.check_dependencies'):
-                                with patch('ra_aid.__main__.validate_environment', return_value=(True, [], True, [])):
-                                    with patch('ra_aid.__main__.run_research_agent'):
-                                        with patch('ra_aid.__main__.DatabaseManager'):
-                                            with patch('ra_aid.__main__.SessionRepositoryManager') as mock_session_manager:
-                                                with patch('ra_aid.__main__.KeyFactRepositoryManager'):
-                                                    with patch('ra_aid.__main__.KeySnippetRepositoryManager'):
-                                                        with patch('ra_aid.__main__.HumanInputRepositoryManager'):
-                                                            with patch('ra_aid.__main__.ResearchNoteRepositoryManager'):
-                                                                with patch('ra_aid.__main__.RelatedFilesRepositoryManager'):
-                                                                    with patch('ra_aid.__main__.TrajectoryRepositoryManager'):
-                                                                        with patch('ra_aid.__main__.WorkLogRepositoryManager'):
-                                                                            with patch('ra_aid.__main__.ConfigRepositoryManager'):
-                                                                                with patch('ra_aid.__main__.EnvInvManager'):
-                                                                                    with patch('ra_aid.__main__.ensure_migrations_applied', return_value=True):
-                                                                                        with patch('ra_aid.__main__.EnvDiscovery'):
-                                                                                            # Mock session manager to return a valid session ID
-                                                                                            mock_session = MagicMock()
-                                                                                            mock_session.get_current_session_id.return_value = 1
-                                                                                            mock_session.create_session.return_value = None
-                                                                                            mock_session_manager.__enter__ = MagicMock(return_value=mock_session)
-                                                                                            mock_session_manager.__exit__ = MagicMock(return_value=None)
-                                                                                            
-                                                                                            with patch.object(sys, "argv", ["ra-aid", "-m", "test"]):
-                                                                                                main()
-                                                                                                
-                                                                                                # Verify None values were set
-                                                                                                mock_config_repository.set.assert_any_call("max_cost", None)
-                                                                                                mock_config_repository.set.assert_any_call("max_tokens", None)
-                                                                                                mock_config_repository.set.assert_any_call("exit_at_limit", False)
+    with contextlib.ExitStack() as stack:
+        # Mock session manager to return a valid session ID
+        mock_session = MagicMock()
+        mock_session.get_current_session_id.return_value = 1
+        mock_session.create_session.return_value = None
+        
+        # Mock context manager __enter__ methods to return mock repositories
+        stack.enter_context(patch('ra_aid.database.connection.DatabaseManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.session_repository.SessionRepositoryManager.__enter__', return_value=mock_session))
+        stack.enter_context(patch('ra_aid.database.repositories.key_fact_repository.KeyFactRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.key_snippet_repository.KeySnippetRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.human_input_repository.HumanInputRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.research_note_repository.ResearchNoteRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.related_files_repository.RelatedFilesRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.trajectory_repository.TrajectoryRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.work_log_repository.WorkLogRepositoryManager.__enter__', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.database.repositories.config_repository.ConfigRepositoryManager.__enter__', return_value=mock_config_repository))
+        stack.enter_context(patch('ra_aid.env_inv_context.EnvInvManager.__enter__', return_value=MagicMock()))
+        
+        # Mock the repository getter functions that access contextvars
+        stack.enter_context(patch('ra_aid.__main__.get_trajectory_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_human_input_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_key_fact_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_key_snippet_repository', return_value=MagicMock()))
+        stack.enter_context(patch('ra_aid.__main__.get_research_note_repository', return_value=MagicMock()))
+        
+        # Mock other dependencies
+        stack.enter_context(patch('ra_aid.__main__.check_dependencies'))
+        stack.enter_context(patch('ra_aid.__main__.validate_environment', return_value=(True, [], True, [])))
+        stack.enter_context(patch('ra_aid.__main__.run_research_agent'))
+        stack.enter_context(patch('ra_aid.__main__.ensure_migrations_applied', return_value=True))
+        stack.enter_context(patch('ra_aid.__main__.EnvDiscovery'))
+        
+        stack.enter_context(patch.object(sys, "argv", ["ra-aid", "-m", "test"]))
+        
+        main()
+        
+        # Verify None values were set
+        mock_config_repository.set.assert_any_call("max_cost", None)
+        mock_config_repository.set.assert_any_call("max_tokens", None)
+        mock_config_repository.set.assert_any_call("exit_at_limit", False)
