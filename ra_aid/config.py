@@ -116,4 +116,5 @@ VALID_PROVIDERS = [
     "ollama",
     "fireworks",
     "groq",
+    "bedrock",
 ]

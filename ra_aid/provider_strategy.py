@@ -389,6 +389,103 @@ class GroqStrategy(ProviderStrategy):
 
         return ValidationResult(valid=len(missing) == 0, missing_vars=missing)
 
+class BedrockStrategy(ProviderStrategy):
+    """Bedrock provider validation strategy."""
+
+    DEFAULT_REGION = "us-east-1"
+
+    def validate(self, args: Optional[Any] = None) -> ValidationResult:
+        """Validate Bedrock environment variables.
+
+        Args:
+            args: Optional command line arguments
+
+        Returns:
+            Result of validation
+        """
+        missing = []
+
+        # Check if we're validating expert config
+        is_expert = (
+            args
+            and hasattr(args, "expert_provider")
+            and args.expert_provider == "bedrock"
+        )
+
+        # Check for AWS credentials
+        if is_expert:
+            # Check for AWS profile
+            aws_profile = os.environ.get("EXPERT_AWS_PROFILE")
+            if not aws_profile or aws_profile == "default":
+                # Try to copy from base if not set
+                base_profile = os.environ.get("AWS_PROFILE")
+                if base_profile:
+                    os.environ["EXPERT_AWS_PROFILE"] = base_profile
+                    aws_profile = base_profile
+
+            # Check for AWS direct credentials
+            aws_access_key = os.environ.get("EXPERT_AWS_ACCESS_KEY_ID")
+            aws_secret_key = os.environ.get("EXPERT_AWS_SECRET_ACCESS_KEY")
+
+            if not aws_access_key or aws_access_key == "":
+                # Try to copy from base if not set
+                base_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+                if base_access_key:
+                    os.environ["EXPERT_AWS_ACCESS_KEY_ID"] = base_access_key
+                    aws_access_key = base_access_key
+
+            if not aws_secret_key or aws_secret_key == "":
+                # Try to copy from base if not set
+                base_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+                if base_secret_key:
+                    os.environ["EXPERT_AWS_SECRET_ACCESS_KEY"] = base_secret_key
+                    aws_secret_key = base_secret_key
+
+            # Optional: AWS Session Token
+            aws_session_token = os.environ.get("EXPERT_AWS_SESSION_TOKEN")
+            if not aws_session_token or aws_session_token == "":
+                base_session_token = os.environ.get("AWS_SESSION_TOKEN")
+                if base_session_token:
+                    os.environ["EXPERT_AWS_SESSION_TOKEN"] = base_session_token
+                    aws_session_token = base_session_token
+
+            # Region
+            aws_region = os.environ.get("EXPERT_AWS_REGION")
+            if not aws_region or aws_region == "":
+                base_region = os.environ.get("AWS_REGION")
+                if base_region:
+                    os.environ["EXPERT_AWS_REGION"] = base_region
+                    aws_region = base_region
+                else:
+                    os.environ["EXPERT_AWS_REGION"] = self.DEFAULT_REGION
+
+            # Validate credentials
+            if not aws_profile and not (aws_access_key and aws_secret_key):
+                missing.append(
+                    "Either EXPERT_AWS_PROFILE or both EXPERT_AWS_ACCESS_KEY_ID and EXPERT_AWS_SECRET_ACCESS_KEY must be set"
+                )
+
+        else:
+            # Check for AWS profile
+            aws_profile = os.environ.get("AWS_PROFILE")
+
+            # Check for AWS direct credentials
+            aws_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+            aws_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+            # Region
+            aws_region = os.environ.get("AWS_REGION")
+            if not aws_region or aws_region == "":
+                os.environ["AWS_REGION"] = self.DEFAULT_REGION
+
+            # Validate credentials
+            if not aws_profile and not (aws_access_key and aws_secret_key):
+                missing.append(
+                    "Either AWS_PROFILE or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set"
+                )
+
+        return ValidationResult(valid=len(missing) == 0, missing_vars=missing)
+
 
 class ProviderFactory:
     """Factory for creating provider validation strategies."""
@@ -414,6 +511,7 @@ class ProviderFactory:
             "deepseek": DeepSeekStrategy(),
             "fireworks": FireworksStrategy(),
             "groq": GroqStrategy(),
+            "bedrock": BedrockStrategy(),
         }
         strategy = strategies.get(provider)
         return strategy
