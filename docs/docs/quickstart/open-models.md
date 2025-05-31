@@ -16,15 +16,16 @@ RA.Aid supports a variety of open source and compatible model providers. This gu
 
 RA.Aid supports these model providers:
 
-| Provider | Description | Key Features |
-|----------|-------------|--------------|
-| DeepSeek | Chinese hedge fund who creates sophisticated LLMs | Strong, open models like R1 |
-| Fireworks | Serverless AI inference platform for open-source models | High-performance inference, pay-per-token, variety of open models |
-| OpenRouter | Multi-model gateway service | Access to 100+ models, unified API interface, pay-per-token |
-| OpenAI-compatible | Self-hosted model endpoints | Compatible with Llama, Mistral and other open models |
-| Anthropic | Claude model series | 200k token context, strong tool use, JSON/XML parsing |
-| Gemini | Google's multimodal models | Code generation in 20+ languages, parallel request support |
-| Ollama | Local LLM hosting framework | Run models locally, no API keys required, offline usage |
+| Provider          | Description                                             | Key Features                                                      |
+|-------------------|---------------------------------------------------------|-------------------------------------------------------------------|
+| DeepSeek          | Chinese hedge fund who creates sophisticated LLMs       | Strong, open models like R1                                       |
+| Fireworks         | Serverless AI inference platform for open-source models | High-performance inference, pay-per-token, variety of open models |
+| OpenRouter        | Multi-model gateway service                             | Access to 100+ models, unified API interface, pay-per-token       |
+| OpenAI-compatible | Self-hosted model endpoints                             | Compatible with Llama, Mistral and other open models              |
+| Anthropic         | Claude model series                                     | 200k token context, strong tool use, JSON/XML parsing             |
+| Gemini            | Google's multimodal models                              | Code generation in 20+ languages, parallel request support        |
+| Ollama            | Local LLM hosting framework                             | Run models locally, no API keys required, offline usage           |
+| Bedrock           | Amazon LLM platform on AWS                              | Large variety of models, serverless, leverages IAM policies       |
 
   </TabItem>
   <TabItem value="setup" label="Quick Setup">
@@ -40,6 +41,12 @@ export OPENROUTER_API_KEY=your_key
 export OPENAI_API_KEY=your_key
 export ANTHROPIC_API_KEY=your_key
 export GEMINI_API_KEY=your_key
+
+export AWS_PROFILE=aws_profile_name # For Bedrock
+# Alternative configurations for Bedrock
+export AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+export AWS_ACCESS_KEY_ID=your_aws_key_id
+
 # Ollama doesn't require an API key
 ```
 
@@ -177,6 +184,28 @@ ra-aid -m "Your task" --provider ollama --model MHKetbi/Qwen2.5-Coder-32B-Instru
 - Works completely offline after model download
 
 For detailed setup instructions and advanced configuration options, see our [Ollama Configuration Guide](../configuration/ollama.md).
+
+</TabItem>
+<TabItem value="bedrock" label="Bedrock">
+### Bedrock Integration
+
+Bedrock provides access to a variety of models hosted on AWS.
+
+```bash
+
+# Basic usage
+ra-aid -m "Your task" --provider bedrock --model us.anthropic.claude-3-7-sonnet-20250219-v1:0
+
+# Expert usage
+ra-aid -m "Your task" --provider bedrock --model claude-3-5-haiku-latest --expert-provider bedrock --expert-model us.anthropic.claude-3-7-sonnet-20250219-v1:0
+```
+
+**Configuration Notes:**
+- Requires AWS credentials configured in your environment
+- Set `AWS_PROFILE` for named profiles or use `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` for direct access
+- Use `AWS_REGION` to specify the region (default: `us-east-1`)
+- Some models require cross-region inference identifier instead of the model name (e.g., `us.anthropic.claude-3-7-sonnet-20250219-v1:0`)
+
 </TabItem>
 </Tabs>
 
@@ -222,6 +251,7 @@ ra-aid -m "Your task" --temperature 0.8
 ```
 
 **Note:** Not all models support temperature control. Check provider documentation.
+
 </TabItem>
 </Tabs>
 
@@ -236,21 +266,30 @@ ra-aid -m "Your task" --temperature 0.8
 
 Complete list of supported environment variables:
 
-| Variable | Provider | Purpose |
-|----------|----------|---------|
-| `OPENROUTER_API_KEY` | OpenRouter | Main API access |
-| `DEEPSEEK_API_KEY` | DeepSeek | Main API access |
-| `FIREWORKS_API_KEY` | Fireworks | Main API access |
-| `OPENAI_API_KEY` | OpenAI-compatible | API access |
-| `OPENAI_API_BASE` | OpenAI-compatible | Custom endpoint |
-| `ANTHROPIC_API_KEY` | Anthropic | API access |
-| `GEMINI_API_KEY` | Gemini | API access |
-| `OLLAMA_BASE_URL` | Ollama | Custom endpoint (default: http://localhost:11434) |
-| `EXPERT_OPENROUTER_API_KEY` | OpenRouter | Expert tool |
-| `EXPERT_DEEPSEEK_API_KEY` | DeepSeek | Expert tool |
-| `EXPERT_FIREWORKS_API_KEY` | Fireworks | Expert tool |
-| `EXPERT_GEMINI_API_KEY` | Gemini | Expert tool |
-| `EXPERT_OLLAMA_BASE_URL` | Ollama | Expert tool endpoint |
+| Variable                       | Provider          | Purpose                                           |
+|--------------------------------|-------------------|---------------------------------------------------|
+| `OPENROUTER_API_KEY`           | OpenRouter        | Main API access                                   |
+| `DEEPSEEK_API_KEY`             | DeepSeek          | Main API access                                   |
+| `FIREWORKS_API_KEY`            | Fireworks         | Main API access                                   |
+| `OPENAI_API_KEY`               | OpenAI-compatible | API access                                        |
+| `OPENAI_API_BASE`              | OpenAI-compatible | Custom endpoint                                   |
+| `ANTHROPIC_API_KEY`            | Anthropic         | API access                                        |
+| `GEMINI_API_KEY`               | Gemini            | API access                                        |
+| `AWS_PROFILE`                  | Bedrock           | API access                                        |
+| `AWS_SECRET_ACCESS_KEY`        | Bedrock           | API access                                        |
+| `AWS_ACCESS_KEY_ID`            | Bedrock           | API access                                        |
+| `AWS_SESSION_TOKEN`            | Bedrock           | API access                                        |
+| `AWS_REGION`                   | Bedrock           | Region specification (default: us-east-1)         |
+| `OLLAMA_BASE_URL`              | Ollama            | Custom endpoint (default: http://localhost:11434) |
+| `EXPERT_OPENROUTER_API_KEY`    | OpenRouter        | Expert tool                                       |
+| `EXPERT_DEEPSEEK_API_KEY`      | DeepSeek          | Expert tool                                       |
+| `EXPERT_FIREWORKS_API_KEY`     | Fireworks         | Expert tool                                       |
+| `EXPERT_GEMINI_API_KEY`        | Gemini            | Expert tool                                       |
+| `EXPERT_OLLAMA_BASE_URL`       | Ollama            | Expert tool endpoint                              |
+| `EXPERT_AWS_PROFILE`           | Bedrock           | Expert tool                                       |
+| `EXPERT_AWS_SECRET_ACCESS_KEY` | Bedrock           | Expert tool                                       |
+| `EXPERT_ACCESS_KEY_ID`         | Bedrock           | Expert tool                                       |
+| `EXPERT_AWS_SESSION_TOKEN`     | Bedrock           | Expert tool                                       |
 
 ## Troubleshooting
 
