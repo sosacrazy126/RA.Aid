@@ -440,18 +440,16 @@ export const DefaultAgentScreen: React.FC = () => {
           All done! Press <kbd className="px-1.5 py-0.5 border rounded bg-muted font-mono text-xs">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 border rounded bg-muted font-mono text-xs">Space</kbd> to start a new session.
         </div>
       )}
-      {/* Input section for existing session (if needed) */}
-      {/* <InputSection onSubmit={handleSubmit} /> */}
     </div>
   ) : newSession ? (
     // New session composition view
     <div className="flex flex-col h-full w-full">
-      <div className="flex-1 overflow-auto w-full">
+      <div className="flex flex-col flex-1 overflow-auto w-full">
         {/* Session title */}
         <div className="px-6 pt-4 pb-2 border-b border-border/30">
           <h2 className="text-xl font-medium">Create New Session</h2>
         </div>
-        <div className="px-6 pt-3 pb-4">
+        <div className="px-6 pt-3 pb-4 flex flex-col flex-1 min-h-0">
           <p className="text-muted-foreground mb-6">
             Type your message in the input box below to start a new conversation with the agent.
           </p>
@@ -472,13 +470,13 @@ export const DefaultAgentScreen: React.FC = () => {
               </p>
             </div>
           </div>
+          {/* Input section for new session */}
+          <InputSection
+            isNewSession={true}
+            isDrawerOpen={isDrawerOpen}
+          />
         </div>
       </div>
-      {/* Input section for new session */}
-      <InputSection
-        isNewSession={true}
-        isDrawerOpen={isDrawerOpen}
-      />
     </div>
   ) : (
     // No session selected view
