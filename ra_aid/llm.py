@@ -74,6 +74,7 @@ known_temp_providers = {
     "ollama",
     "fireworks",
     "groq",
+    "bedrock",
 }
 
 # Constants for API request configuration
@@ -296,6 +297,60 @@ def create_ollama_client(
         **temp_kwargs,
     )
 
+def create_bedrock_client(
+    model_name: str,
+    aws_profile: Optional[str] = None,
+    aws_access_key_id: Optional[str] = None,
+    aws_secret_access_key: Optional[str] = None,
+    aws_session_token: Optional[str] = None,
+    region_name: Optional[str] = "us-east-1",
+    temperature: Optional[float] = None,
+    is_expert: bool = False,
+) -> BaseChatModel:
+    """Create a ChatBedrock client.
+
+    Args:
+        model_name: Name of the model to use
+        aws_profile: AWS profile name (optional)
+        aws_access_key_id: AWS access key ID (optional)
+        aws_secret_access_key: AWS secret access key (optional)
+        aws_session_token: AWS session token (optional)
+        region_name: AWS region name (default: us-east-1)
+        temperature: Temperature for generation
+        is_expert: Whether this is for an expert model
+
+    Returns:
+        ChatBedrock instance
+    """
+    from langchain_aws import ChatBedrock
+    import boto3
+
+    # Create temperature kwargs if specified
+    temp_kwargs = {}
+    if temperature is not None:
+        temp_kwargs["temperature"] = temperature
+
+    if aws_profile:
+        session = boto3.Session(profile_name=aws_profile, region_name=region_name)
+    else:
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
+            region_name=region_name,
+        )
+
+    return ChatBedrock(
+        model_id=model_name,
+        client=session.client("bedrock-runtime"),
+        streaming=False,
+        metadata={
+            "model_name": model_name,
+            "provider": "bedrock"
+        },
+        **temp_kwargs,
+    )
+
 
 def get_provider_config(provider: str, is_expert: bool = False) -> Dict[str, Any]:
     """Get provider-specific configuration."""
@@ -338,13 +393,21 @@ def get_provider_config(provider: str, is_expert: bool = False) -> Dict[str, Any
             "api_key": get_env_var("GROQ_API_KEY", is_expert),
             "base_url": None,  # Using default API endpoint
         },
+        "bedrock": {
+            "aws_profile": get_env_var("AWS_PROFILE", is_expert),
+            "aws_access_key_id": get_env_var("AWS_ACCESS_KEY_ID", is_expert),
+            "aws_secret_access_key": get_env_var("AWS_SECRET_ACCESS_KEY", is_expert),
+            "aws_session_token": get_env_var("AWS_SESSION_TOKEN", is_expert),
+            "region_name": get_env_var("AWS_REGION_NAME", is_expert, "us-east-1"),
+            "base_url": None,
+        }
     }
     config = configs.get(provider, {})
     if not config:
         raise ValueError(f"Unsupported provider: {provider}")
 
     # Ollama doesn't require an API key
-    if provider != "ollama" and not config.get("api_key"):
+    if provider != "ollama" and provider != "bedrock" and not config.get("api_key"):
         raise ValueError(
             f"Missing required environment variable for provider: {provider}"
         )
@@ -623,6 +686,17 @@ def create_llm_client(
                 "provider": "groq"
             }
         )
+    elif provider == "bedrock":
+        return create_bedrock_client(
+            model_name=model_name,
+            aws_profile=config.get("aws_profile"),
+            aws_access_key_id=config.get("aws_access_key_id"),
+            aws_secret_access_key=config.get("aws_secret_access_key"),
+            aws_session_token=config.get("aws_session_token"),
+            region_name=config.get("region_name"),
+            temperature=temperature if temp_kwargs else None,
+            is_expert=is_expert,
+        )
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
@@ -651,6 +725,7 @@ def validate_provider_env(provider: str) -> bool:
         "ollama": None,  # Ollama doesn't require any environment variables to be set
         "fireworks": "FIREWORKS_API_KEY",
         "groq": "GROQ_API_KEY",
+        "bedrock": None,  # Bedrock requires AWS_PROFILE or AWS_ACCESS_KEY_ID
     }
 
     key = required_vars.get(provider.lower())
@@ -659,5 +734,11 @@ def validate_provider_env(provider: str) -> bool:
         if provider.lower() == "ollama":
             # Always return True for Ollama, since we have a default base URL (http://localhost:11434)
             return True
+        elif provider.lower() == "bedrock":
+            # For Bedrock, check if at least one of the AWS keys is set
+            return (
+                bool(os.getenv("AWS_PROFILE"))
+                or (bool(os.getenv("AWS_ACCESS_KEY_ID")) and bool(os.getenv("AWS_SECRET_ACCESS_KEY")))
+            )
         return False
     return bool(os.getenv(key))

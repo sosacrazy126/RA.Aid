@@ -152,11 +152,11 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 z-20 pointer-events-none md:left-[280px] lg:left-[320px] xl:left-[350px]",
+      "flex flex-col flex-1",
       className
     )}>
-      <div className="px-4 pb-4 pointer-events-none">
-        <div className="relative rounded-lg border border-input bg-background/95 backdrop-blur-sm shadow-md pointer-events-auto">
+      <div className="pt-4 flex flex-col flex-1 pointer-events-auto">
+        <div className="relative rounded-lg border border-input bg-background/95 backdrop-blur-sm shadow-md pointer-events-auto flex flex-col h-full">
           {isNewSession && (
             <div className="flex justify-between items-center pt-2 px-3">
               <div className="text-sm font-medium">Create New Session</div>
@@ -174,7 +174,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
               </Button>
             </div>
           )}
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col h-full">
             <textarea
               ref={textareaRef} // Attach the ref here
               value={message}
@@ -187,12 +187,12 @@ export const InputSection: React.FC<InputSectionProps> = ({
               }}
               onKeyDown={handleKeyDown} // <-- Add keydown handler
               placeholder={placeholder}
-              className="flex w-full resize-none rounded-lg border-0 bg-transparent px-3 py-2 pr-12 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-              rows={isNewSession ? 4 : 3}
+              className="flex w-full resize-none rounded-lg border-0 bg-transparent px-3 py-2 pr-12 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 grow"
+              rows={isNewSession ? 1 : 3}
               disabled={isSubmitting}
             />
             {isNewSession ? (
-              <div className="flex items-center justify-end space-x-2 px-3 py-2 border-t border-border/30">{/* Changed justify-end */}
+              <div className="flex items-center justify-end space-x-2 px-3 py-2 border-t border-border/30">
                 <Button
                   type="button"
                   variant="outline"
